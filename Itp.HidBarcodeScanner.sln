@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30804.86
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Itp.HidBarcodeScanner", "Itp.HidBarcodeScanner\Itp.HidBarcodeScanner.csproj", "{11C9E463-DEAC-476A-8B53-6CAA9691690A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WpfBarcodeScannerDemo", "WpfBarcodeScannerDemo\WpfBarcodeScannerDemo.csproj", "{D132EC0E-C06B-4047-8836-10EA93E0F9F8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HidBarcodeScannerDemo", "HidBarcodeScannerDemo\HidBarcodeScannerDemo.csproj", "{5FAC0FE9-430F-41ED-A0FC-0541309DA9EB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Itp.HidBarcodeScanner.Demo", "Itp.HidBarcodeScanner.Demo\Itp.HidBarcodeScanner.Demo.csproj", "{DFF4FB90-6441-4196-8E57-F34706D26CF3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{11C9E463-DEAC-476A-8B53-6CAA9691690A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{11C9E463-DEAC-476A-8B53-6CAA9691690A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{11C9E463-DEAC-476A-8B53-6CAA9691690A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{11C9E463-DEAC-476A-8B53-6CAA9691690A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D132EC0E-C06B-4047-8836-10EA93E0F9F8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D132EC0E-C06B-4047-8836-10EA93E0F9F8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D132EC0E-C06B-4047-8836-10EA93E0F9F8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D132EC0E-C06B-4047-8836-10EA93E0F9F8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5FAC0FE9-430F-41ED-A0FC-0541309DA9EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5FAC0FE9-430F-41ED-A0FC-0541309DA9EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5FAC0FE9-430F-41ED-A0FC-0541309DA9EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5FAC0FE9-430F-41ED-A0FC-0541309DA9EB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DFF4FB90-6441-4196-8E57-F34706D26CF3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DFF4FB90-6441-4196-8E57-F34706D26CF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DFF4FB90-6441-4196-8E57-F34706D26CF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DFF4FB90-6441-4196-8E57-F34706D26CF3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3459A613-6807-4A82-978C-1CA267662E2F}
+	EndGlobalSection
+EndGlobal
