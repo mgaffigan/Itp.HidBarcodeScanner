@@ -21,6 +21,6 @@ jobs:
     - name: NugetPush Itp.HidBarcodeScanner
       run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} Itp.HidBarcodeScanner/bin/Release/Itp.HidBarcodeScanner.${{github.ref_name}}.nupkg
     - name: Build Itp.WpfScanners
-      run: dotnet pack Itp.WpfScanners -c Release -p:Version=${{github.ref_name}}
+      run: dotnet pack Itp.WpfScannerScopes -c Release -p:Version=${{github.ref_name}}
     - name: NugetPush Itp.WpfScanners
-      run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} Itp.WpfScanners/bin/Release/Itp.WpfScanners.${{github.ref_name}}.nupkg
+      run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} Itp.WpfScannerScopes/bin/Release/Itp.WpfScanners.${{github.ref_name}}.nupkg
