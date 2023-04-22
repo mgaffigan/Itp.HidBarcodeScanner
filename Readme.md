@@ -4,7 +4,7 @@
 
 Framwork for incorporating barcode and RFID scanners into WPF applications.
 
-[More information](Itp.WpfScanners)
+[More information](Itp.WpfScannerScopes)
 
 ## ITP HID Barcode Scanner API
 
