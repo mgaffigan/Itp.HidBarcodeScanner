@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net7.0-windows10.0.22621.0</TargetFrameworks>
+    <Nullable Condition="'$(TargetFramework)' == 'net48'">annotations</Nullable>
+    <Nullable Condition="'$(TargetFramework)' != 'net48'">enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <Title>ITP WPF Barcode Scanner API</Title>
+    <Description>Keyboard-like incorporation of barcode scanners into WPF applications.  Support for Serial and HID barcode scanners.</Description>
+    <PackageReadmeFile>Readme.md</PackageReadmeFile>
+  </PropertyGroup>
+  <Import Project="..\assets\EsattoCSCommon.targets" />
+
+  <ItemGroup>
+    <PackageReference Include="Esatto.Win32.Common" Version="1.0.1" />
+    <PackageReference Include="Esatto.Win32.Registry" Version="1.0.1" />
+    <PackageReference Include="System.IO.Ports" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Itp.HidBarcodeScanner\Itp.HidBarcodeScanner.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Readme.md">
+      <PackagePath>\</PackagePath>
+      <Pack>True</Pack>
+    </None>
+  </ItemGroup>
+
+</Project>

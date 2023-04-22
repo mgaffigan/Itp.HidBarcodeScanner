@@ -1,15 +1,23 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30804.86
+# Visual Studio Version 17
+VisualStudioVersion = 17.4.33213.308
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Itp.HidBarcodeScanner", "Itp.HidBarcodeScanner\Itp.HidBarcodeScanner.csproj", "{11C9E463-DEAC-476A-8B53-6CAA9691690A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Itp.HidBarcodeScanner", "Itp.HidBarcodeScanner\Itp.HidBarcodeScanner.csproj", "{11C9E463-DEAC-476A-8B53-6CAA9691690A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WpfBarcodeScannerDemo", "WpfBarcodeScannerDemo\WpfBarcodeScannerDemo.csproj", "{D132EC0E-C06B-4047-8836-10EA93E0F9F8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HidBarcodeScannerDemo", "HidBarcodeScannerDemo\HidBarcodeScannerDemo.csproj", "{5FAC0FE9-430F-41ED-A0FC-0541309DA9EB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HidBarcodeScannerDemo", "HidBarcodeScannerDemo\HidBarcodeScannerDemo.csproj", "{5FAC0FE9-430F-41ED-A0FC-0541309DA9EB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Itp.HidBarcodeScanner.Demo", "Itp.HidBarcodeScanner.Demo\Itp.HidBarcodeScanner.Demo.csproj", "{DFF4FB90-6441-4196-8E57-F34706D26CF3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Itp.HidBarcodeScanner.Demo", "Itp.HidBarcodeScanner.Demo\Itp.HidBarcodeScanner.Demo.csproj", "{DFF4FB90-6441-4196-8E57-F34706D26CF3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Itp.WpfScanners", "Itp.WpfScannerScopes\Itp.WpfScanners.csproj", "{093EEF72-B3C3-479C-93C9-0125099AD63F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{FAE64632-57BC-452F-91FD-F065844E2B65}"
+	ProjectSection(SolutionItems) = preProject
+		Assets\EsattoCSCommon.targets = Assets\EsattoCSCommon.targets
+		LICENSE.txt = LICENSE.txt
+		Readme.md = Readme.md
+		.github\workflows\release.yml = .github\workflows\release.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,10 +29,6 @@ Global
 		{11C9E463-DEAC-476A-8B53-6CAA9691690A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{11C9E463-DEAC-476A-8B53-6CAA9691690A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{11C9E463-DEAC-476A-8B53-6CAA9691690A}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D132EC0E-C06B-4047-8836-10EA93E0F9F8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D132EC0E-C06B-4047-8836-10EA93E0F9F8}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D132EC0E-C06B-4047-8836-10EA93E0F9F8}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D132EC0E-C06B-4047-8836-10EA93E0F9F8}.Release|Any CPU.Build.0 = Release|Any CPU
 		{5FAC0FE9-430F-41ED-A0FC-0541309DA9EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{5FAC0FE9-430F-41ED-A0FC-0541309DA9EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5FAC0FE9-430F-41ED-A0FC-0541309DA9EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -33,6 +37,10 @@ Global
 		{DFF4FB90-6441-4196-8E57-F34706D26CF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DFF4FB90-6441-4196-8E57-F34706D26CF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DFF4FB90-6441-4196-8E57-F34706D26CF3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{093EEF72-B3C3-479C-93C9-0125099AD63F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{093EEF72-B3C3-479C-93C9-0125099AD63F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{093EEF72-B3C3-479C-93C9-0125099AD63F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{093EEF72-B3C3-479C-93C9-0125099AD63F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

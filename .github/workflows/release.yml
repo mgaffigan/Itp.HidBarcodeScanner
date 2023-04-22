@@ -1,0 +1,26 @@
+name: Release tagged revision
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  build:
+
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 7.0.x
+    - name: Build Itp.HidBarcodeScanner
+      run: dotnet pack Itp.HidBarcodeScanner -c Release -p:Version=${{github.ref_name}}
+    - name: NugetPush Itp.HidBarcodeScanner
+      run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} Itp.HidBarcodeScanner/bin/Release/Itp.HidBarcodeScanner.${{github.ref_name}}.nupkg
+    - name: Build Itp.WpfScanners
+      run: dotnet pack Itp.WpfScanners -c Release -p:Version=${{github.ref_name}}
+    - name: NugetPush Itp.WpfScanners
+      run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} Itp.WpfScanners/bin/Release/Itp.WpfScanners.${{github.ref_name}}.nupkg
