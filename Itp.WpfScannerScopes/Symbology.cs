@@ -1,4 +1,4 @@
-﻿namespace Itp.WpfScanners.Hal;
+﻿namespace Itp.WpfScanners;
 
 public enum Symbology
 {

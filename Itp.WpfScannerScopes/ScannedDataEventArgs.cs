@@ -1,7 +1,8 @@
 ﻿using System;
 using System.Text;
+using Itp.WpfScanners.Hal;
 
-namespace Itp.WpfScanners.Hal;
+namespace Itp.WpfScanners;
 
 public delegate void ScannedDataReceivedEventHandler(object? sender, ScannedDataEventArgs args);
 

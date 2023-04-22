@@ -6,7 +6,6 @@ using System.Windows;
 using System.Windows.Input;
 using System.Diagnostics;
 using System.Windows.Media;
-using Itp.WpfScanners.Hal;
 
 namespace Itp.WpfScanners;
 
