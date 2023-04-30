@@ -2,7 +2,7 @@
 
 namespace Itp.WpfScanners.Hal;
 
-class SybleXb6299 : LineBasedScanner
+public class SybleXb6299 : LineBasedScanner
 {
     public SybleXb6299(string portName)
         : base(portName)

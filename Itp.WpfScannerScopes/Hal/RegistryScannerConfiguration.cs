@@ -4,7 +4,7 @@ using Esatto.Win32.Registry;
 
 namespace Itp.WpfScanners.Hal;
 
-internal class RegistryScannerConfiguration : RegistrySettings
+public class RegistryScannerConfiguration : RegistrySettings
 {
     public static RegistryScannerConfiguration Config { get; } = new();
 

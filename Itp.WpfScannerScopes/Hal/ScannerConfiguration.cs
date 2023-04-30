@@ -6,7 +6,7 @@ using System.Runtime.Versioning;
 
 namespace Itp.WpfScanners.Hal;
 
-internal class ScannerConfiguration : RegistrySettings
+public class ScannerConfiguration : RegistrySettings
 {
     public ScannerConfiguration(string regPath)
         : base(regPath)

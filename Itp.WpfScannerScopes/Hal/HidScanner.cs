@@ -3,7 +3,7 @@ using System.Threading;
 
 namespace Itp.WpfScanners.Hal;
 
-internal sealed class HidScanner : Scanner
+public sealed class HidScanner : Scanner
 {
     private HidScannerCollection Collection;
 
