@@ -1,5 +1,6 @@
 ﻿namespace Itp.HidCallControl;
 
+// https://www.usb.org/sites/default/files/documents/hut1_12v2.pdf#page=69
 public enum TelephonyKey
 {
     Unknown = 0,

@@ -14,7 +14,7 @@ Example use:
 
 ## Device Support
 
-Any device which exposes the Telephony HID page should be compatible.  All input 
+Any device which exposes the [Telephony HID page](https://www.usb.org/sites/default/files/documents/hut1_12v2.pdf#page=69) should be compatible.  All input 
 reports for single-bit inputs (push buttons) are passed on to app.
 
 Tested devices:
