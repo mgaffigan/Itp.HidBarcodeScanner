@@ -24,3 +24,7 @@ jobs:
       run: dotnet pack Itp.WpfScannerScopes -c Release -p:Version=${{github.ref_name}}
     - name: NugetPush Itp.WpfScanners
       run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} Itp.WpfScannerScopes/bin/Release/Itp.WpfScanners.${{github.ref_name}}.nupkg
+    - name: Build Itp.HidCallControl
+      run: dotnet pack Itp.HidCallControl -c Release -p:Version=${{github.ref_name}}
+    - name: NugetPush Itp.HidCallControl
+      run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} Itp.HidCallControl/bin/Release/Itp.HidCallControl.${{github.ref_name}}.nupkg
