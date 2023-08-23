@@ -106,6 +106,15 @@ public class ScannerControlScope : ContentControl
 
     #region Scan Events
 
+    /// <summary>
+    /// Simulate text being scanned by a scanner
+    /// </summary>
+    /// <param name="text">the text of the barcode scanned</param>
+    public void RaiseKeyboardScan(string text)
+    {
+        scanner_ScanReceived(this, ScannedDataEventArgs.FromKeyboard(text));
+    }
+
     private void scanner_ScanReceived(object? sender, ScannedDataEventArgs args)
     {
         if (!this.Dispatcher.CheckAccess())
@@ -132,7 +141,7 @@ public class ScannerControlScope : ContentControl
 
         foreach (var prop in distance)
         {
-            prop.Scope.HandleScan(sender, args);
+            prop.Scope.HandleScan(this, args);
 
             if (args.IsHandled)
                 break;

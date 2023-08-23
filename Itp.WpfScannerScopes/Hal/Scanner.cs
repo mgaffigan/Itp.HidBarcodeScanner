@@ -23,3 +23,18 @@ public abstract class Scanner
 
     public abstract void Stop();
 }
+
+public sealed class NullScanner : Scanner
+{
+    public static NullScanner Instance { get; } = new NullScanner();
+
+    public override void Start()
+    {
+        // nop
+    }
+
+    public override void Stop()
+    {
+        // nop
+    }
+}

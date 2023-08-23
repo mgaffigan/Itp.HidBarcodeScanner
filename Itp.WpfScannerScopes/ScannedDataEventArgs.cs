@@ -31,11 +31,24 @@ public class ScannedDataEventArgs : EventArgs
     public bool IsHandled { get; set; }
 
     public ScannedDataEventArgs(Scanner scanner, Symbology symbol, byte[] data)
+        : this(scanner, symbol, data, Encoding.ASCII.GetString(data))
     {
-        Source = scanner;
+        // nop
+    }
+    public ScannedDataEventArgs(Scanner scanner, Symbology symbol, string textData)
+        : this(scanner, symbol, Encoding.ASCII.GetBytes(textData), textData)
+    {
+        // nop
+    }
+
+    public ScannedDataEventArgs(Scanner scanner, Symbology symbol, byte[] data, string textData)
+    {
+        Source = scanner ?? throw new ArgumentNullException(nameof(scanner));
         SourceSymbology = symbol;
         RawData = data;
-
-        TextData = Encoding.ASCII.GetString(data);
+        TextData = textData;
     }
+
+    public static ScannedDataEventArgs FromKeyboard(string s) 
+        => new ScannedDataEventArgs(NullScanner.Instance, Symbology.Unknown, s);
 }
