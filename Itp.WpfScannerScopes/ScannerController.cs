@@ -131,5 +131,14 @@ public class ScannerController
         {
             this.AddPnPScanners();
         }
+        if (RegistryScannerConfiguration.Config.ShowEmulatedScanner)
+        {
+            this.AddEmulatedScanner();
+        }
+    }
+
+    private void AddEmulatedScanner()
+    {
+        AddScanner(EmulatedScanner.Instance);
     }
 }

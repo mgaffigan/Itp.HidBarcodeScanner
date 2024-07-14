@@ -47,7 +47,13 @@ public class RegistryScannerConfiguration : RegistrySettings
 
     public bool AutodetectPnP
     {
-        get { return GetBool("AutodetectPnP", true); }
-        set { SetBool("AutodetectPnP", value); }
+        get => GetBool(nameof(AutodetectPnP), true);
+        set => SetBool(nameof(AutodetectPnP), value);
+    }
+
+    public bool ShowEmulatedScanner
+    {
+        get => GetBool(nameof(ShowEmulatedScanner), false);
+        set => SetBool(nameof(ShowEmulatedScanner), value);
     }
 }

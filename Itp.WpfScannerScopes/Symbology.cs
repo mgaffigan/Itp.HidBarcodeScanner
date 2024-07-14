@@ -2,7 +2,7 @@
 
 public enum Symbology
 {
-    Code39 = 0,
+    Unknown = 0,
     Codabar = 1,
     ModifiedPlessey = 2,
     Code128 = 3,
@@ -15,6 +15,7 @@ public enum Symbology
     AztecCode = 10,
     PDF417 = 11,
     MicroPDF417 = 12,
-    Unknown = 13,
-    GS1 = 14 //all types
+    Code39 = 13,
+    GS1 = 14, //all types
+    RFID = 15,
 }
