@@ -17,14 +17,14 @@ jobs:
       with:
         dotnet-version: 7.0.x
     - name: Build Itp.HidBarcodeScanner
-      run: dotnet pack Itp.HidBarcodeScanner -c Release -p:Version=${{github.ref_name}}
+      run: dotnet pack Itp.HidBarcodeScanner -c Release
     - name: NugetPush Itp.HidBarcodeScanner
       run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} --skip-duplicate Itp.HidBarcodeScanner/bin/Release/Itp.HidBarcodeScanner.${{github.ref_name}}.nupkg
     - name: Build Itp.WpfScanners
-      run: dotnet pack Itp.WpfScannerScopes -c Release -p:Version=${{github.ref_name}}
+      run: dotnet pack Itp.WpfScannerScopes -c Release
     - name: NugetPush Itp.WpfScanners
       run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} --skip-duplicate Itp.WpfScannerScopes/bin/Release/Itp.WpfScanners.${{github.ref_name}}.nupkg
     - name: Build Itp.HidCallControl
-      run: dotnet pack Itp.HidCallControl -c Release -p:Version=${{github.ref_name}}
+      run: dotnet pack Itp.HidCallControl -c Release
     - name: NugetPush Itp.HidCallControl
       run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} --skip-duplicate Itp.HidCallControl/bin/Release/Itp.HidCallControl.${{github.ref_name}}.nupkg

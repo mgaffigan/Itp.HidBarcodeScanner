@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net7.0-windows10.0.22621.0</TargetFrameworks>
+    <TargetFrameworks>net8.0-windows10.0.22621.0</TargetFrameworks>
     <!--
     <Nullable Condition="'$(TargetFramework)' == 'net48'">annotations</Nullable>
     <Nullable Condition="'$(TargetFramework)' != 'net48'">enable</Nullable>
@@ -9,7 +9,7 @@
     <Title>ITP HID Barcode Scanner API</Title>
     <Description>User-mode HID API permitting use and control of USB HID POS Barcode scanners from Windows Desktop applications</Description>
     <PackageReadmeFile>Readme.md</PackageReadmeFile>
-    <VersionPrefix>2.0.7</VersionPrefix>
+    <VersionPrefix>2.0.9</VersionPrefix>
   </PropertyGroup>
   <Import Project="..\assets\EsattoCSCommon.targets" />
   <ItemGroup>
