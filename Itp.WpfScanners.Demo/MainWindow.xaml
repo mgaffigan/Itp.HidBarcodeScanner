@@ -1,0 +1,23 @@
+﻿<Window x:Class="Itp.WpfScanners.Demo.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="clr-namespace:Itp.WpfScanners.Demo"
+    xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+    xmlns:scan="urn:itp:scanners"
+    mc:Ignorable="d"
+    Title="MainWindow" Height="450" Width="800">
+    <scan:ScannerControlScope AutoConfigure="True">
+        <StackPanel>
+            <local:ScanningTextBox />
+            <local:ScanningTextBox />
+            <local:ScanningTextBox />
+            <local:ScanningTextBox />
+
+            <scan:ScannerScope ScanReceived="wb_ScanReceived">
+                <wv2:WebView2 x:Name="wb" Height="600" Source="https://google.com" GotFocus="wb_GotFocus" />
+            </scan:ScannerScope>
+        </StackPanel>
+    </scan:ScannerControlScope>
+</Window>
