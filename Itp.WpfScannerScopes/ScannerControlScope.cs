@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Diagnostics;
 using System.Windows.Media;
+using System.ComponentModel;
 
 namespace Itp.WpfScanners;
 
@@ -20,7 +21,7 @@ public class ScannerControlScope : ContentControl
     }
 
     public static readonly DependencyProperty ScannerControllerProperty =
-        DependencyProperty.Register("ScannerController", typeof(ScannerController), 
+        DependencyProperty.Register("ScannerController", typeof(ScannerController),
         typeof(ScannerControlScope), new UIPropertyMetadata(null, ScannerController_Changed));
 
     private static void ScannerController_Changed(DependencyObject source, DependencyPropertyChangedEventArgs args)
@@ -45,7 +46,7 @@ public class ScannerControlScope : ContentControl
     #endregion
 
     #region AutoConfigure
-    
+
     public bool AutoConfigure
     {
         get { return (bool)GetValue(AutoConfigureProperty); }
@@ -53,12 +54,14 @@ public class ScannerControlScope : ContentControl
     }
 
     public static readonly DependencyProperty AutoConfigureProperty =
-        DependencyProperty.Register("AutoConfigure", typeof(bool), 
+        DependencyProperty.Register("AutoConfigure", typeof(bool),
         typeof(ScannerControlScope), new UIPropertyMetadata(false, AutoConfigure_Changed));
 
     private static void AutoConfigure_Changed(DependencyObject source, DependencyPropertyChangedEventArgs args)
     {
         var @this = (ScannerControlScope)source;
+
+        if (DesignerProperties.GetIsInDesignMode(@this)) return;
 
         if (object.Equals(args.NewValue, true) && @this.ScannerController == null)
         {
@@ -93,7 +96,9 @@ public class ScannerControlScope : ContentControl
 
     private void evalStartStop()
     {
-        bool state = registeredScopes.Any();
+        if (DesignerProperties.GetIsInDesignMode(this)) return;
+
+        bool state = registeredScopes.Any() || _ScanOfLastResort is not null;
         var controller = ScannerController;
 
         if (controller != null)
@@ -105,6 +110,21 @@ public class ScannerControlScope : ContentControl
     #endregion
 
     #region Scan Events
+
+    public event ScannedDataReceivedEventHandler? _ScanOfLastResort;
+    public event ScannedDataReceivedEventHandler ScanReceived
+    {
+        add
+        {
+            _ScanOfLastResort += value;
+            evalStartStop();
+        }
+        remove
+        {
+            _ScanOfLastResort -= value;
+            evalStartStop();
+        }
+    }
 
     /// <summary>
     /// Simulate text being scanned by a scanner
@@ -121,7 +141,7 @@ public class ScannerControlScope : ContentControl
         {
             // this cannot be synchronous, as the handler may open additional windows
             // and this might not return for minutes or more
-            this.Dispatcher.BeginInvoke(new ScannedDataReceivedEventHandler(scanner_ScanReceived), 
+            this.Dispatcher.BeginInvoke(new ScannedDataReceivedEventHandler(scanner_ScanReceived),
                 System.Windows.Threading.DispatcherPriority.Input, sender, args);
             return;
         }
@@ -129,9 +149,17 @@ public class ScannerControlScope : ContentControl
         // find the appropriate scope to send it
         var kf = Keyboard.FocusedElement as DependencyObject;
 
+        var lastResort = _ScanOfLastResort;
         if (kf == null)
         {
-            Debug.WriteLine("No focused element to send data");
+            if (lastResort is not null)
+            {
+                lastResort(this, args);
+            }
+            else
+            {
+                Debug.WriteLine("No focused element to send data");
+            }
             return;
         }
 
@@ -145,6 +173,11 @@ public class ScannerControlScope : ContentControl
 
             if (args.IsHandled)
                 break;
+        }
+
+        if (!args.IsHandled && lastResort is not null)
+        {
+            lastResort(this, args);
         }
 
         if (!args.IsHandled)

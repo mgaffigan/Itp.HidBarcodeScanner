@@ -2,6 +2,7 @@
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Diagnostics;
+using System.ComponentModel;
 
 namespace Itp.WpfScanners;
 
@@ -17,6 +18,8 @@ public class ScannerScope : ContentControl
 
     private void ScannerScope_Loaded(object? sender, RoutedEventArgs e)
     {
+        if (DesignerProperties.GetIsInDesignMode(this)) return;
+
         if (!AlwaysActive)
         {
             return;
@@ -27,6 +30,8 @@ public class ScannerScope : ContentControl
 
     private void ScannerScope_Unloaded(object? sender, RoutedEventArgs e)
     {
+        if (DesignerProperties.GetIsInDesignMode(this)) return;
+
         Disconnect();
     }
 
@@ -42,8 +47,10 @@ public class ScannerScope : ContentControl
     protected override void OnIsKeyboardFocusWithinChanged(DependencyPropertyChangedEventArgs e)
     {
         base.OnIsKeyboardFocusWithinChanged(e);
-        var newValue = (bool)e.NewValue;
 
+        if (DesignerProperties.GetIsInDesignMode(this)) return;
+
+        var newValue = (bool)e.NewValue;
         if (newValue)
         {
             Connect();
