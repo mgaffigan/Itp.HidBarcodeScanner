@@ -9,6 +9,7 @@
     <Title>ITP HID Barcode Scanner API</Title>
     <Description>User-mode HID API permitting use and control of USB HID POS Barcode scanners from Windows Desktop applications</Description>
     <PackageReadmeFile>Readme.md</PackageReadmeFile>
+    <VersionPrefix>2.0.7</VersionPrefix>
   </PropertyGroup>
   <Import Project="..\assets\EsattoCSCommon.targets" />
   <ItemGroup>

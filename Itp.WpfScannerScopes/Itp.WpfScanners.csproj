@@ -10,6 +10,7 @@
     <Title>ITP WPF Barcode Scanner API</Title>
     <Description>Keyboard-like incorporation of barcode scanners into WPF applications.  Support for Serial and HID barcode scanners.</Description>
     <PackageReadmeFile>Readme.md</PackageReadmeFile>
+    <VersionPrefix>2.0.7</VersionPrefix>
   </PropertyGroup>
   <Import Project="..\assets\EsattoCSCommon.targets" />
 

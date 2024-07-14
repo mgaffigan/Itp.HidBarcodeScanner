@@ -8,6 +8,7 @@
     <Title>ITP HID Call Control API</Title>
     <Description>User-mode HID API permitting USB HID keypads, headsets, and handsets from Windows Desktop applications</Description>
     <PackageReadmeFile>Readme.md</PackageReadmeFile>
+    <VersionPrefix>2.0.7</VersionPrefix>
   </PropertyGroup>
 
   <Import Project="..\assets\EsattoCSCommon.targets" />
