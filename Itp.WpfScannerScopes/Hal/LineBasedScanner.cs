@@ -1,22 +1,25 @@
 ﻿using System;
 using System.IO.Ports;
+using System.Threading;
 
 namespace Itp.WpfScanners.Hal;
 
 public abstract class LineBasedScanner : Scanner
 {
+    protected readonly SynchronizationContext SyncCtx;
     private SerialPort spComm;
     private int cBufPos;
     private byte[]? buffer;
     private readonly object syncComm = new object();
 
-    public LineBasedScanner(string portName)
-        : this(new SerialPort(portName, 9600, Parity.None, 8, StopBits.One))
+    public LineBasedScanner(string portName, SynchronizationContext syncCtx)
+        : this(new SerialPort(portName, 9600, Parity.None, 8, StopBits.One), syncCtx)
     {
     }
 
-    public LineBasedScanner(SerialPort serialPort)
+    public LineBasedScanner(SerialPort serialPort, SynchronizationContext syncCtx)
     {
+        SyncCtx = syncCtx;
         spComm = serialPort;
         spComm.DataReceived += new SerialDataReceivedEventHandler(spComm_DataReceived);
     }

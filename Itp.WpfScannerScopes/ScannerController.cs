@@ -51,7 +51,7 @@ public class ScannerController : IDisposable
         if (!config.IsPresent())
             return;
 
-        AddScanner(Scanner.FromConfig(config));
+        AddScanner(Scanner.FromConfig(config, SyncCtx));
     }
 
     public void AddPnPScanners()
@@ -63,10 +63,10 @@ public class ScannerController : IDisposable
             // Syble XB-6299 (ITP Branded)
             if (l.HardwareID.StartsWith(@"USB\VID_6666&PID_7777", StringComparison.InvariantCultureIgnoreCase))
             {
-                AddScanner(new SybleXb6299(l.PortName));
+                AddScanner(new SybleXb6299(l.PortName, SyncCtx));
             }
         }
-        AddScanner(new HidScanner());
+        AddScanner(new HidScanner(SyncCtx));
     }
 
     private void AddScanner(Scanner scanner)

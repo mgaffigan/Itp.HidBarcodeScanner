@@ -8,8 +8,14 @@ public sealed class HidScanner : Scanner
     private HidScannerCollection Collection;
 
     public HidScanner()
+        : this(SynchronizationContext.Current ?? new SynchronizationContext())
     {
-        Collection = new HidScannerCollection(SynchronizationContext.Current ?? new SynchronizationContext());
+        // nop
+    }
+
+    public HidScanner(SynchronizationContext syncCtx)
+    {
+        Collection = new HidScannerCollection(syncCtx);
     }
 
     public override void Dispose()

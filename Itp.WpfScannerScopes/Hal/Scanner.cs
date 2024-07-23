@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 
 namespace Itp.WpfScanners.Hal;
 
@@ -11,10 +12,10 @@ public abstract class Scanner : IDisposable
         ScanReceived?.Invoke(this, new ScannedDataEventArgs(this, symbology, data));
     }
 
-    internal static Scanner FromConfig(ScannerConfiguration config)
+    internal static Scanner FromConfig(ScannerConfiguration config, SynchronizationContext syncCtx)
     {
         if (config.ScannerType == ScannerType.SybleXb6299)
-            return new SybleXb6299(config);
+            return new SybleXb6299(config, syncCtx);
         else
             throw new NotSupportedException($"Unknown scanner type: '{config.ScannerType}'");
     }

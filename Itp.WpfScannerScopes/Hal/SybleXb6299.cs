@@ -1,16 +1,18 @@
 ﻿using System;
+using System.Threading;
 
 namespace Itp.WpfScanners.Hal;
 
 public class SybleXb6299 : LineBasedScanner
 {
-    public SybleXb6299(string portName)
-        : base(portName)
+    public SybleXb6299(string portName, SynchronizationContext syncCtx)
+        : base(portName, syncCtx)
     {
+        // nop
     }
 
-    public SybleXb6299(ScannerConfiguration config)
-        : this(config.PortName ?? throw new InvalidOperationException("Port name must be specified"))
+    public SybleXb6299(ScannerConfiguration config, SynchronizationContext syncCtx)
+        : this(config.PortName ?? throw new InvalidOperationException("Port name must be specified"), syncCtx)
     {
     }
 
@@ -42,7 +44,8 @@ public class SybleXb6299 : LineBasedScanner
 
         var barcode = new byte[eomPos - somPos - 2];
         Buffer.BlockCopy(buffer, somPos + 2, barcode, 0, barcode.Length);
-        OnScanReceived(parseSymbology((char)buffer[somPos + 1]), barcode);
+        var symbology = parseSymbology((char)buffer[somPos + 1]);
+        SyncCtx.Post(_ => OnScanReceived(symbology, barcode), null);
     }
 
     private Symbology parseSymbology(char c)
