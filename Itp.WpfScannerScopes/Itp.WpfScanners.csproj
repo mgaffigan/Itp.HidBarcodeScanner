@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net8.0-windows10.0.22621.0</TargetFrameworks>
+    <TargetFrameworks>net8.0-windows10.0.22621.0;net462</TargetFrameworks>
     <Nullable Condition="'$(TargetFramework)' == 'net48'">annotations</Nullable>
     <Nullable Condition="'$(TargetFramework)' != 'net48'">enable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -10,14 +10,17 @@
     <Title>ITP WPF Barcode Scanner API</Title>
     <Description>Keyboard-like incorporation of barcode scanners into WPF applications.  Support for Serial and HID barcode scanners.</Description>
     <PackageReadmeFile>Readme.md</PackageReadmeFile>
-    <VersionPrefix>2.0.9</VersionPrefix>
+    <VersionPrefix>3.0.0-preview9</VersionPrefix>
   </PropertyGroup>
   <Import Project="..\assets\EsattoCSCommon.targets" />
 
   <ItemGroup>
-    <PackageReference Include="Esatto.Win32.Common" Version="1.0.1" />
-    <PackageReference Include="Esatto.Win32.Registry" Version="1.0.1" />
-    <PackageReference Include="System.IO.Ports" Version="7.0.0" />
+    <PackageReference Include="Esatto.Utilities" Version="3.0.17" />
+    <PackageReference Include="Esatto.Win32.Common" Version="3.0.17" />
+    <PackageReference Include="Esatto.Win32.Registry" Version="3.0.17" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' != 'net462'">
+    <PackageReference Include="System.IO.Ports" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>

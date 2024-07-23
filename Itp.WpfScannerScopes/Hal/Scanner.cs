@@ -2,7 +2,7 @@
 
 namespace Itp.WpfScanners.Hal;
 
-public abstract class Scanner
+public abstract class Scanner : IDisposable
 {
     public event ScannedDataReceivedEventHandler? ScanReceived;
 
@@ -22,6 +22,8 @@ public abstract class Scanner
     public abstract void Start();
 
     public abstract void Stop();
+
+    public virtual void Dispose() => Stop();
 }
 
 public sealed class NullScanner : Scanner

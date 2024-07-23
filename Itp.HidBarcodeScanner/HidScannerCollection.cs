@@ -1,13 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace Itp.HidBarcodeScanner
 {
-    public class HidScannerCollection
+    public class HidScannerCollection : IDisposable
     {
         private readonly SynchronizationContext SyncCtx;
         private readonly object SyncRoot;
@@ -15,7 +12,7 @@ namespace Itp.HidBarcodeScanner
 
         private List<HidScannerClaim> Scanners;
 
-        private event EventHandler<HidScanReceivedEventArgs> _ScanReceived;
+        private event EventHandler<HidScanReceivedEventArgs>? _ScanReceived;
         public event EventHandler<HidScanReceivedEventArgs> ScanReceived
         {
             add
@@ -54,7 +51,7 @@ namespace Itp.HidBarcodeScanner
             }
         }
 
-        public event EventHandler<UnhandledExceptionEventArgs> BackgroundException;
+        public event EventHandler<UnhandledExceptionEventArgs>? BackgroundException;
 
         public HidScannerCollection(SynchronizationContext syncCtx)
         {
@@ -62,6 +59,11 @@ namespace Itp.HidBarcodeScanner
 
             this.Scanners = new List<HidScannerClaim>();
             this.SyncRoot = new object();
+        }
+
+        public void Dispose()
+        {
+            Disconnect();
         }
 
         private void Connect()
@@ -96,7 +98,7 @@ namespace Itp.HidBarcodeScanner
             }
         }
 
-        private void ConnectedDev_ScanReceived(object sender, HidScanReceivedEventArgs e)
+        private void ConnectedDev_ScanReceived(object? sender, HidScanReceivedEventArgs e)
         {
             try
             {
@@ -120,13 +122,13 @@ namespace Itp.HidBarcodeScanner
             }
         }
 
-        private async void HidScannerDevice_DeviceConnected(object sender, HidScannerConnectedEventArgs e)
+        private async void HidScannerDevice_DeviceConnected(object? sender, HidScannerConnectedEventArgs e)
         {
             if (e.State == HidScannerDeviceState.Connected)
             {
                 try
                 {
-                    var dev = await e.Device.ConnectAsync(SyncCtx);
+                    var dev = await e.Device!.ConnectAsync(SyncCtx);
                     SetupDevice(dev);
                 }
                 catch (Exception ex)

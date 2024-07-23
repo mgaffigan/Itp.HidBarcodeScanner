@@ -51,4 +51,6 @@ public class ScannedDataEventArgs : EventArgs
 
     public static ScannedDataEventArgs FromKeyboard(string s) 
         => new ScannedDataEventArgs(NullScanner.Instance, Symbology.Unknown, s);
+
+    public override string ToString() => $"{TextData} ({SourceSymbology} from {Source})";
 }

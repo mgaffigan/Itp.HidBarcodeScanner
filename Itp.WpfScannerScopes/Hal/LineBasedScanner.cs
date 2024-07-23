@@ -21,6 +21,8 @@ public abstract class LineBasedScanner : Scanner
         spComm.DataReceived += new SerialDataReceivedEventHandler(spComm_DataReceived);
     }
 
+    public override void Dispose() => spComm.Dispose();
+
     public override void Start()
     {
         lock (syncComm)

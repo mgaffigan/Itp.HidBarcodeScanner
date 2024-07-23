@@ -7,11 +7,22 @@ using System.Windows.Input;
 using System.Diagnostics;
 using System.Windows.Media;
 using System.ComponentModel;
+using System.Windows.Threading;
+using Esatto.Utilities;
 
 namespace Itp.WpfScanners;
 
 public class ScannerControlScope : ContentControl
 {
+    private readonly ContextAwareCoalescingAction caStartStop;
+
+    public ScannerControlScope()
+    {
+        caStartStop = new ContextAwareCoalescingAction(evalStartStop,
+            TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(250), 
+            new DispatcherSynchronizationContext(this.Dispatcher));
+    }
+
     #region ScannerController
 
     public ScannerController ScannerController
@@ -39,7 +50,7 @@ public class ScannerControlScope : ContentControl
             var newv = (ScannerController)args.NewValue;
 
             newv.ScanReceived += @this.scanner_ScanReceived;
-            @this.evalStartStop();
+            @this.caStartStop.Set();
         }
     }
 
@@ -65,7 +76,7 @@ public class ScannerControlScope : ContentControl
 
         if (object.Equals(args.NewValue, true) && @this.ScannerController == null)
         {
-            @this.ScannerController = new ScannerController();
+            @this.ScannerController = new ScannerController(new DispatcherSynchronizationContext(@this.Dispatcher));
             @this.ScannerController.AutoConfigure();
         }
     }
@@ -82,7 +93,7 @@ public class ScannerControlScope : ContentControl
             return;
 
         registeredScopes.Add(scannerScope);
-        evalStartStop();
+        caStartStop.Set();
     }
 
     internal void RemoveScope(ScannerScope scannerScope)
@@ -91,7 +102,7 @@ public class ScannerControlScope : ContentControl
             return;
 
         registeredScopes.Remove(scannerScope);
-        evalStartStop();
+        caStartStop.Set();
     }
 
     private void evalStartStop()
@@ -117,12 +128,12 @@ public class ScannerControlScope : ContentControl
         add
         {
             _ScanOfLastResort += value;
-            evalStartStop();
+            caStartStop.Set();
         }
         remove
         {
             _ScanOfLastResort -= value;
-            evalStartStop();
+            caStartStop.Set();
         }
     }
 

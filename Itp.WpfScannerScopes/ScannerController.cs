@@ -3,21 +3,48 @@ using System.Linq;
 using System.Collections.ObjectModel;
 using Itp.WpfScanners.Hal;
 using Esatto.Win32.CommonControls;
+using System.Threading;
+using Esatto.Utilities;
 
 namespace Itp.WpfScanners;
 
 /// <summary>
 /// Class which manages the scanners and actuates events up the tree
 /// </summary>
-public class ScannerController
+public class ScannerController : IDisposable
 {
     private ObservableCollection<Scanner> _scanners = new ObservableCollection<Scanner>();
     public ObservableCollection<Scanner> Scanners { get { return _scanners; } }
     public event ScannedDataReceivedEventHandler? ScanReceived;
     private bool isStarted = false;
+    private readonly SynchronizationContext SyncCtx;
+    private readonly ThreadAssert thread = new ThreadAssert();
+
+    public ScannerController()
+        : this(SynchronizationContext.Current ?? new SynchronizationContext())
+    {
+    }
+
+    public ScannerController(SynchronizationContext syncCtx)
+    {
+        if (syncCtx == null)
+            throw new ArgumentNullException("syncCtx");
+
+        this.SyncCtx = syncCtx;
+    }
+
+    public void Dispose()
+    {
+        thread.Assert();
+        foreach (var scanner in Scanners)
+        {
+            scanner.Dispose();
+        }
+    }
 
     internal void AddScanner(ScannerConfiguration config)
     {
+        thread.Assert();
         if (config == null)
             throw new ArgumentNullException("config");
 
@@ -29,6 +56,7 @@ public class ScannerController
 
     public void AddPnPScanners()
     {
+        thread.Assert();
         var list = DetectedPort.GetAllPorts();
         foreach (var l in list)
         {
@@ -43,6 +71,7 @@ public class ScannerController
 
     private void AddScanner(Scanner scanner)
     {
+        thread.Assert();
         this.Scanners.Add(scanner);
 
         scanner.ScanReceived += scanner_ScanReceived;
@@ -55,6 +84,7 @@ public class ScannerController
 
     public void StartListening()
     {
+        thread.Assert();
         if (isStarted)
             return;
 
@@ -68,6 +98,7 @@ public class ScannerController
 
     public void StopListening()
     {
+        thread.Assert();
         if (!isStarted)
             return;
 
@@ -84,6 +115,7 @@ public class ScannerController
         get { return isStarted; }
         set
         {
+            thread.Assert();
             try
             {
                 if (value)
@@ -114,14 +146,13 @@ public class ScannerController
 
     private void scanner_ScanReceived(object? sender, ScannedDataEventArgs args)
     {
-        var sr = ScanReceived;
-
-        if (sr != null)
-            sr(this, args);
+        thread.Assert();
+        ScanReceived?.Invoke(this, args);
     }
 
     public void AutoConfigure()
     {
+        thread.Assert();
         foreach (var scanner in RegistryScannerConfiguration.Config
             .Scanners.Where(s => s.IsPresent()))
         {
@@ -139,6 +170,7 @@ public class ScannerController
 
     private void AddEmulatedScanner()
     {
+        thread.Assert();
         AddScanner(EmulatedScanner.Instance);
     }
 }

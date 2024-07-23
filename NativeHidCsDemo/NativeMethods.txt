@@ -1,0 +1,15 @@
+HidD_GetHidGuid
+SetupDiGetClassDevs
+SetupDiEnumDeviceInterfaces
+SetupDiGetDeviceInterfaceDetail
+CreateFile
+ERROR_NO_MORE_ITEMS
+GENERIC_READ
+GENERIC_WRITE
+HidD_GetPreparsedData
+HidD_FreePreparsedData
+HidP_GetCaps
+HidP_GetUsageValue
+HidP_GetUsageValueArray
+HidP_GetValueCaps
+HidP_GetUsages

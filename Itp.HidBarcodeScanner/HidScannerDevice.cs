@@ -1,14 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
-using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Devices.Enumeration;
 using Windows.Devices.HumanInterfaceDevice;
-using Windows.Storage;
 
 namespace Itp.HidBarcodeScanner
 {
@@ -18,10 +14,10 @@ namespace Itp.HidBarcodeScanner
 
         public string Description => DevInfo.Name;
 
-        private static DeviceWatcher Watcher;
+        private static DeviceWatcher? Watcher;
         private static bool IsHooked;
         private static readonly object SyncHook = new object();
-        private static event EventHandler<HidScannerConnectedEventArgs> _DeviceConnected;
+        private static event EventHandler<HidScannerConnectedEventArgs>? _DeviceConnected;
         public static event EventHandler<HidScannerConnectedEventArgs> DeviceConnected
         {
             add
@@ -44,7 +40,7 @@ namespace Itp.HidBarcodeScanner
                     if (_DeviceConnected == null || _DeviceConnected.GetInvocationList().Length == 0)
                     {
                         IsHooked = false;
-                        Watcher.Stop();
+                        Watcher?.Stop();
                         Watcher = null;
                     }
                 }
@@ -68,13 +64,7 @@ namespace Itp.HidBarcodeScanner
 
         internal async Task<HidScannerClaim> ConnectAsync(SynchronizationContext syncCtx)
         {
-            var device = await HidDevice.FromIdAsync(DevInfo.Id, FileAccessMode.ReadWrite);
-            if (device == null)
-            {
-                throw new FileNotFoundException();
-            }
-
-            return await HidScannerClaim.CreateAsync(device, DevInfo.Id, syncCtx);
+            return await HidScannerClaim.CreateAsync(DevInfo.Id, syncCtx);
         }
 
         public static async Task<IEnumerable<HidScannerDevice>> GetAllDevicesAsync()
@@ -99,7 +89,7 @@ namespace Itp.HidBarcodeScanner
     {
         public HidScannerDeviceState State { get; }
 
-        public HidScannerDevice Device { get; }
+        public HidScannerDevice? Device { get; }
 
         public string DeviceId { get; }
 
@@ -107,6 +97,7 @@ namespace Itp.HidBarcodeScanner
         {
             this.State = state;
             this.Device = device;
+            this.DeviceId = device.DevInfo.Id;
         }
 
         internal HidScannerConnectedEventArgs(string deviceId, HidScannerDeviceState state)

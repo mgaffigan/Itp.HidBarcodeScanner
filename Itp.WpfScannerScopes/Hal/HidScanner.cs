@@ -9,7 +9,12 @@ public sealed class HidScanner : Scanner
 
     public HidScanner()
     {
-        Collection = new HidScannerCollection(SynchronizationContext.Current);
+        Collection = new HidScannerCollection(SynchronizationContext.Current ?? new SynchronizationContext());
+    }
+
+    public override void Dispose()
+    {
+        Collection.Dispose();
     }
 
     public override void Start()

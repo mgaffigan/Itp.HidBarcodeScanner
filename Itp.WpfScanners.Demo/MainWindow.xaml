@@ -4,7 +4,6 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:local="clr-namespace:Itp.WpfScanners.Demo"
-    xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
     xmlns:scan="urn:itp:scanners"
     mc:Ignorable="d"
     Title="MainWindow" Height="450" Width="800">
@@ -15,9 +14,8 @@
             <local:ScanningTextBox />
             <local:ScanningTextBox />
 
-            <scan:ScannerScope ScanReceived="wb_ScanReceived">
-                <wv2:WebView2 x:Name="wb" Height="600" Source="https://google.com" GotFocus="wb_GotFocus" />
-            </scan:ScannerScope>
+            <TextBox Text="No scan" />
+            <CheckBox x:Name="cbController" Checked="cbController_Checked" Unchecked="cbController_Checked" Content="Enable explicit scanner controller" />
         </StackPanel>
     </scan:ScannerControlScope>
 </Window>
