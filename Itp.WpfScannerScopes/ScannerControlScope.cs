@@ -122,7 +122,7 @@ public class ScannerControlScope : ContentControl
 
     #region Scan Events
 
-    public event ScannedDataReceivedEventHandler? _ScanOfLastResort;
+    private event ScannedDataReceivedEventHandler? _ScanOfLastResort;
     public event ScannedDataReceivedEventHandler ScanReceived
     {
         add
