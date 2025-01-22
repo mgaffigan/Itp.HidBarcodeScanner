@@ -6,7 +6,8 @@
         xmlns:local="clr-namespace:Itp.HidBarcodeScanner.Demo"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
-    <Grid>
+    <DockPanel>
+        <CheckBox x:Name="cbEnable" DockPanel.Dock="Top" Checked="cbEnable_Checked" Unchecked="cbEnable_Unchecked" IsChecked="True" />
         <TextBox x:Name="tb" AcceptsReturn="True" />
-    </Grid>
+    </DockPanel>
 </Window>

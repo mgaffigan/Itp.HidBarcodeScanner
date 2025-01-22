@@ -21,6 +21,19 @@ public class ScannerControlScope : ContentControl
         caStartStop = new ContextAwareCoalescingAction(evalStartStop,
             TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(250), 
             new DispatcherSynchronizationContext(this.Dispatcher));
+
+        this.Loaded += ScannerControlScope_Loaded;
+        this.Unloaded += ScannerControlScope_Unloaded;
+    }
+
+    private void ScannerControlScope_Loaded(object sender, RoutedEventArgs e)
+    {
+        caStartStop.Set();
+    }
+
+    private void ScannerControlScope_Unloaded(object sender, RoutedEventArgs e)
+    {
+        caStartStop.Set();
     }
 
     #region ScannerController
@@ -109,7 +122,7 @@ public class ScannerControlScope : ContentControl
     {
         if (DesignerProperties.GetIsInDesignMode(this)) return;
 
-        bool state = registeredScopes.Any() || _ScanOfLastResort is not null;
+        bool state = IsLoaded && (registeredScopes.Any() || _ScanOfLastResort is not null);
         var controller = ScannerController;
 
         if (controller != null)

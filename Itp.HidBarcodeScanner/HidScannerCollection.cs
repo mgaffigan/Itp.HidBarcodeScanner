@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 
 namespace Itp.HidBarcodeScanner
@@ -85,10 +86,10 @@ namespace Itp.HidBarcodeScanner
         {
             HidScannerDevice.DeviceConnected -= HidScannerDevice_DeviceConnected;
 
-            IEnumerable<HidScannerClaim> claims;
+            List<HidScannerClaim> claims;
             lock (SyncRoot)
             {
-                claims = Scanners.ToArray();
+                claims = Scanners.ToList();
                 Scanners.Clear();
             }
 

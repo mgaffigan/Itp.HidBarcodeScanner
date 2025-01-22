@@ -10,14 +10,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-
-        Scanner = new HidScannerCollection(SynchronizationContext.Current ?? throw new InvalidOperationException());
-        Scanner.ScanReceived += this.Scanner_ScanReceived;
     }
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        Scanner.Dispose();
+        Scanner?.Dispose();
         base.OnClosing(e);
     }
 
@@ -26,5 +23,17 @@ public partial class MainWindow : Window
         tb.Text = e.TextData;
     }
 
-    public HidScannerCollection Scanner { get; }
+    public HidScannerCollection? Scanner { get; set; }
+
+    private void cbEnable_Checked(object sender, RoutedEventArgs e)
+    {
+        Scanner = new HidScannerCollection(SynchronizationContext.Current ?? throw new InvalidOperationException());
+        Scanner.ScanReceived += this.Scanner_ScanReceived;
+    }
+
+    private void cbEnable_Unchecked(object sender, RoutedEventArgs e)
+    {
+        Scanner.Dispose();
+        Scanner = null;
+    }
 }

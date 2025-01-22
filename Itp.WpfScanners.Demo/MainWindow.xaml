@@ -7,7 +7,7 @@
     xmlns:scan="urn:itp:scanners"
     mc:Ignorable="d"
     Title="MainWindow" Height="450" Width="800">
-    <scan:ScannerControlScope AutoConfigure="True">
+    <scan:ScannerControlScope AutoConfigure="True" x:Name="scs">
         <StackPanel>
             <local:ScanningTextBox />
             <local:ScanningTextBox />
@@ -15,7 +15,7 @@
             <local:ScanningTextBox />
 
             <TextBox Text="No scan" />
-            <CheckBox x:Name="cbController" Checked="cbController_Checked" Unchecked="cbController_Checked" Content="Enable explicit scanner controller" />
+            <CheckBox x:Name="cbController" Checked="cbController_Checked" Unchecked="cbController_Checked" Content="Attach last resort scan" />
         </StackPanel>
     </scan:ScannerControlScope>
 </Window>
