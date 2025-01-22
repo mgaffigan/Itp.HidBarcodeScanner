@@ -16,6 +16,16 @@
 
             <TextBox Text="No scan" />
             <CheckBox x:Name="cbController" Checked="cbController_Checked" Unchecked="cbController_Checked" Content="Attach last resort scan" />
+            <CheckBox x:Name="cbTabControl" Checked="cbTabControl_Checked" Unchecked="cbTabControl_Checked" Content="Attach tabcontrol" />
+
+            <TabControl scan:ScannerScope.IsDelegationScope="True" x:Name="tabControl">
+                <TabItem Header="Tab 1">
+                    <local:ScanningTextBox />
+                </TabItem>
+                <TabItem Header="Tab 2">
+                    <local:ScanningTextBox />
+                </TabItem>
+            </TabControl>
         </StackPanel>
     </scan:ScannerControlScope>
 </Window>

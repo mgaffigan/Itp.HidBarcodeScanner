@@ -1,4 +1,8 @@
-﻿using System;
+﻿// Define DEBUG and TRACE to ensure that Debug.WriteLine works in release mode
+#define DEBUG
+#define TRACE
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Controls;
@@ -98,23 +102,28 @@ public class ScannerControlScope : ContentControl
 
     #region Scopes
 
-    private List<ScannerScope> registeredScopes = new List<ScannerScope>();
+    private List<WeakReference<ScannerScope>> registeredScopes = new();
 
     internal void AddScope(ScannerScope scannerScope)
     {
-        if (registeredScopes.Contains(scannerScope))
-            return;
+        // avoid duplicates
+        RemoveScope(scannerScope);
+        registeredScopes.Add(new WeakReference<ScannerScope>(scannerScope));
 
-        registeredScopes.Add(scannerScope);
         caStartStop.Set();
     }
 
     internal void RemoveScope(ScannerScope scannerScope)
     {
-        if (!registeredScopes.Contains(scannerScope))
-            return;
+        // Remove this scope or any other dead scopes
+        for (int i = registeredScopes.Count - 1; i >= 0; i--)
+        {
+            if (!registeredScopes[i].TryGetTarget(out var target) || target == scannerScope)
+            {
+                registeredScopes.RemoveAt(i);
+            }
+        }
 
-        registeredScopes.Remove(scannerScope);
         caStartStop.Set();
     }
 
@@ -188,12 +197,14 @@ public class ScannerControlScope : ContentControl
         }
 
         var distance = registeredScopes
+            .Select(s => s.TryGetTarget(out var target) ? target! : null!)
+            .Where(s => s != null)
             .Select(scope => new { Distance = distToElement(kf, scope), Scope = scope })
             .OrderBy(sc => sc.Distance);
 
         foreach (var prop in distance)
         {
-            prop.Scope.HandleScan(this, args);
+            prop.Scope.HandleScan(args);
 
             if (args.IsHandled)
                 break;
@@ -205,7 +216,9 @@ public class ScannerControlScope : ContentControl
         }
 
         if (!args.IsHandled)
-            Debug.WriteLine("Scan went unanswered: {0}", args.TextData);
+        {
+            Debug.WriteLine($"Scan went unanswered: '{args.TextData}'");
+        }
     }
 
     private int distToElement(DependencyObject child, ScannerScope parent)

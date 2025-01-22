@@ -34,4 +34,18 @@ public partial class MainWindow : Window
     {
         cbController.Content = args.ToString();
     }
+
+    private void cbTabControl_Checked(object sender, RoutedEventArgs e)
+    {
+        this.scs.ScanReceived -= Scs_ScanReceivedTabControl;
+        if (cbTabControl.IsChecked.GetValueOrDefault())
+        {
+            this.scs.ScanReceived += Scs_ScanReceivedTabControl;
+        }
+    }
+
+    private void Scs_ScanReceivedTabControl(object sender, ScannedDataEventArgs args)
+    {
+        _ = ScannerScope.TryDelegateScanTo(tabControl, args);
+    }
 }
