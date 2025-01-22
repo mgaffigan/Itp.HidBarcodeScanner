@@ -83,16 +83,15 @@ internal partial class EmulatedScannerWindow : Window
 
 public class EmulatedScanner : Scanner
 {
-    private static Lazy<EmulatedScanner> Scanner = new();
-    public static EmulatedScanner Instance => Scanner.Value;
-
+    private readonly SynchronizationContext SyncCtx;
     private readonly EmulatedScannerVM vm;
     private readonly Thread thBackground;
 
-    public EmulatedScanner()
+    public EmulatedScanner(SynchronizationContext syncCtx)
     {
+        this.SyncCtx = syncCtx ?? throw new ArgumentNullException(nameof(syncCtx));
         vm = new EmulatedScannerVM();
-        vm.ScanReceived += OnScanReceived;
+        vm.ScanReceived += (sym, data) => SyncCtx.Post(_ => OnScanReceived(sym, data), null);
         thBackground = new Thread(EmulatedScannerMain);
         thBackground.Name = "EmulatedScanner";
         thBackground.IsBackground = true;

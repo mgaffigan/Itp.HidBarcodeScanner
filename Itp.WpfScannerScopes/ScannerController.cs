@@ -171,6 +171,6 @@ public class ScannerController : IDisposable
     private void AddEmulatedScanner()
     {
         thread.Assert();
-        AddScanner(EmulatedScanner.Instance);
+        AddScanner(new EmulatedScanner(SyncCtx));
     }
 }
