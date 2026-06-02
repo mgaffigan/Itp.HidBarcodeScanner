@@ -8,6 +8,7 @@ namespace Itp.HidBarcodeScanner
 {
     public enum HidScannerSymbology
     {
+        // https://sps-support.honeywell.com/s/article/List-of-barcode-symbology-AIM-Identifiers
         Datamatrix = 0x5d6431,
         UCC128 = 0x5d4331,
         Code128 = 0x5d4330,

@@ -21,6 +21,7 @@ class HidScannerClaim : IDisposable
     private readonly SynchronizationContext SyncCtx;
     private readonly Task ReadPromise;
     private readonly CancellationTokenSource cts;
+    private bool handlerPending;
 
     public event EventHandler<HidScanReceivedEventArgs>? ScanReceived;
     public event UnhandledExceptionEventHandler? Exception;
@@ -52,7 +53,7 @@ class HidScannerClaim : IDisposable
         {
             using var fh = CreateFile(DeviceId, 0xC0000000 /* GENERIC_READ | GENERIC_WRITE */, FileShare.ReadWrite,
                 IntPtr.Zero, FileMode.Open, 0x40000000 /* FILE_FLAG_OVERLAPPED */, IntPtr.Zero);
-            using var fs = new FileStream(fh, FileAccess.ReadWrite, bufferSize: 4096, isAsync: true);
+            using var fs = new FileStream(fh, FileAccess.ReadWrite, bufferSize: 0, isAsync: true);
             MungeFilestreamIntoAPipe(fs);
             using var hid = new HidDescriptor(fh);
             var scanReportID = hid.GetReportIdForValueCap(0x8c, 0xfe);
@@ -65,7 +66,7 @@ class HidScannerClaim : IDisposable
                 int bytesRead;
                 try
                 {
-                    bytesRead = await fs.ReadAsync(buffer, 0, buffer.Length, cts.Token);
+                    bytesRead = await fs.ReadAsync(buffer, 0, buffer.Length, cts.Token).ConfigureAwait(false);
                     if (bytesRead == 0) break;
                 }
                 catch (ObjectDisposedException) { break; }
@@ -141,9 +142,39 @@ class HidScannerClaim : IDisposable
 
         scannedData = accumulatedScanData.ToArray();
         accumulatedScanData.SetLength(0);
-        SyncCtx.Post((_1) =>
+
+        var args = new HidScanReceivedEventArgs(scannedData, (HidScannerSymbology)symbology);
+        if (handlerPending)
         {
-            ScanReceived?.Invoke(this, new HidScanReceivedEventArgs(scannedData, (HidScannerSymbology)symbology));
+            Debug.WriteLine($"Scan received while handler pending, dropping: {args}");
+            return;
+        }
+        handlerPending = true;
+        SyncCtx.Post(async (_1) =>
+        {
+            try
+            {
+                ScanReceived?.Invoke(this, args);
+                if (args.Deferral is { } deferral)
+                {
+                    await deferral.ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    Exception?.Invoke(this, new UnhandledExceptionEventArgs(ex, false));
+                }
+                catch (Exception ex2)
+                {
+                    Debug.WriteLine($"Exception in exception handler: {ex2}");
+                }
+            }
+            finally
+            {
+                handlerPending = false;
+            }
         }, null);
     }
 

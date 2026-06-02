@@ -7,7 +7,10 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
     <DockPanel>
-        <CheckBox x:Name="cbEnable" DockPanel.Dock="Top" Checked="cbEnable_Checked" Unchecked="cbEnable_Unchecked" IsChecked="True" />
+        <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
+            <CheckBox x:Name="cbEnable" Content="Enable Scanner" Checked="cbEnable_Checked" Unchecked="cbEnable_Unchecked" IsChecked="True" VerticalAlignment="Center" />
+            <CheckBox x:Name="cbDelay" Content="Delay" VerticalAlignment="Center" Margin="5,0,0,0" />
+        </StackPanel>
         <TextBox x:Name="tb" AcceptsReturn="True" />
     </DockPanel>
 </Window>
