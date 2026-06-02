@@ -2,7 +2,9 @@
 //
 
 #include <string>
+#include <sstream>
 #include <string_view>
+#include <fstream>
 #include <iostream>
 #include <iomanip>
 #include <vector>
@@ -97,6 +99,28 @@ std::vector<std::wstring> GetHidDevices(std::wstring& hardwareId)
 // add wil unique_ptr for HidD_FreePreparsedData
 typedef wil::unique_any<PHIDP_PREPARSED_DATA, decltype(&::HidD_FreePreparsedData), ::HidD_FreePreparsedData> unique_hid_preparsed_data;
 
+void WriteSerial(const wil::unique_handle& hDevice, const std::string& str)
+{
+	// Prepare OVERLAPPED structure
+	OVERLAPPED overlapped = { 0 };
+	overlapped.hEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+	THROW_LAST_ERROR_IF_MSG(overlapped.hEvent == nullptr, "CreateEvent failed");
+
+	// Write IMGSHIP command to start reading
+	CHAR outSerial[64] = { 253 };
+	memcpy(&outSerial[2], str.data(), str.length());
+	outSerial[1] = str.length();
+	DWORD bytesWritten = 0;
+	if (!WriteFile(hDevice.get(), outSerial, sizeof(outSerial), &bytesWritten, &overlapped) && GetLastError() != ERROR_IO_PENDING)
+	{
+		THROW_LAST_ERROR_MSG("WriteFile failed to send command");
+	}
+
+	THROW_LAST_ERROR_IF(!GetOverlappedResult(hDevice.get(), &overlapped, &bytesWritten, TRUE));
+}
+
+BYTE data[1024 * 1024] = { 0 };
+
 void listen_to_scanner(const std::wstring& path)
 {
 	wil::unique_handle hDevice(CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr));
@@ -113,12 +137,54 @@ void listen_to_scanner(const std::wstring& path)
 	std::unique_ptr<HIDP_VALUE_CAPS[]> inputCaps(new HIDP_VALUE_CAPS[caps.NumberInputValueCaps]);
 	THROW_IF_NTSTATUS_FAILED(HidP_GetSpecificValueCaps(HidP_Input, 0, 0, 0, inputCaps.get(), &caps.NumberInputValueCaps, preparsedData.get()));
 
+	for (USHORT i = 0; i < caps.NumberInputValueCaps; i++)
+	{
+		std::wcout << L"Input Cap " << std::hex << inputCaps[i].Range.UsageMin << L" to " << inputCaps[i].Range.UsageMax
+			<< L" page " << inputCaps[i].UsagePage << std::endl;
+	}
+
 	std::unique_ptr<HIDP_BUTTON_CAPS[]> buttonCaps(new HIDP_BUTTON_CAPS[caps.NumberInputButtonCaps]);
 	THROW_IF_NTSTATUS_FAILED(HidP_GetButtonCaps(HidP_Input, buttonCaps.get(), &caps.NumberInputButtonCaps, preparsedData.get()));
+
+	for (USHORT i = 0; i < caps.NumberInputButtonCaps; i++)
+	{
+		std::wcout << L"Button Cap " << std::hex << buttonCaps[i].Range.UsageMin << L" to " << buttonCaps[i].Range.UsageMax
+			<< L" page " << buttonCaps[i].UsagePage << std::endl;
+	}
+
+	std::unique_ptr<HIDP_VALUE_CAPS[]> outputValueCaps(new HIDP_VALUE_CAPS[caps.NumberOutputValueCaps]);
+	THROW_IF_NTSTATUS_FAILED(HidP_GetSpecificValueCaps(HidP_Output, 0, 0, 0, outputValueCaps.get(), &caps.NumberOutputValueCaps, preparsedData.get()));
+
+	for (USHORT i = 0; i < caps.NumberOutputValueCaps; i++)
+	{
+		std::wcout << L"Output Cap " << std::hex << outputValueCaps[i].Range.UsageMin << L" to " << outputValueCaps[i].Range.UsageMax
+			<< L" page " << outputValueCaps[i].UsagePage << L" report " << outputValueCaps[i].ReportID << std::endl;
+	}
+
+	std::unique_ptr<HIDP_BUTTON_CAPS[]> outputButtonCaps(new HIDP_BUTTON_CAPS[caps.NumberOutputButtonCaps]);
+	THROW_IF_NTSTATUS_FAILED(HidP_GetButtonCaps(HidP_Output, outputButtonCaps.get(), &caps.NumberOutputButtonCaps, preparsedData.get()));
+
+	for (USHORT i = 0; i < caps.NumberOutputButtonCaps; i++)
+	{
+		std::wcout << L"Output Button Cap " << std::hex << outputButtonCaps[i].Range.UsageMin << L" to " << outputButtonCaps[i].Range.UsageMax
+			<< L" page " << outputButtonCaps[i].UsagePage << L" report " << outputButtonCaps[i].ReportID << std::endl;
+	}
+
+	std::unique_ptr<HIDP_VALUE_CAPS[]> featureValueCaps(new HIDP_VALUE_CAPS[caps.NumberFeatureValueCaps]);
+	THROW_IF_NTSTATUS_FAILED(HidP_GetSpecificValueCaps(HidP_Feature, 0, 0, 0, featureValueCaps.get(), &caps.NumberFeatureValueCaps, preparsedData.get()));
+
+	for (USHORT i = 0; i < caps.NumberFeatureValueCaps; i++)
+	{
+		std::wcout << L"Feature Cap " << std::hex << featureValueCaps[i].Range.UsageMin << L" to " << featureValueCaps[i].Range.UsageMax
+			<< L" page " << featureValueCaps[i].UsagePage << L" report " << featureValueCaps[i].ReportID << std::endl;
+	}
 
 	HIDP_VALUE_CAPS textCap;
 	USHORT numCaps = 1;
 	THROW_IF_NTSTATUS_FAILED(HidP_GetSpecificValueCaps(HidP_Input, 0x8c, 0, 0xfe, &textCap, &numCaps, preparsedData.get()));
+
+	HIDP_BUTTON_CAPS preventRead;
+	THROW_IF_NTSTATUS_FAILED(HidP_GetSpecificButtonCaps(HidP_Output, 0x8c, 0, 0x5f, &preventRead, &numCaps, preparsedData.get()));
 
 	// Allocate buffer for input report
 	BYTE buf1[64] = { 0 };
@@ -129,7 +195,30 @@ void listen_to_scanner(const std::wstring& path)
 	overlapped.hEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 	THROW_LAST_ERROR_IF_MSG(overlapped.hEvent == nullptr, "CreateEvent failed");
 
+	//// Write IMGSHIP command to start reading
+	//CHAR outSerial[64] = { 253 };
+	////auto str = "\x16M\rSHWNRD0!";
+	//std::string str = "\x16M\x0dIMGSNP;IMGSHP8F75K26U!";
+	////std::string str = "\x16\xFE\xAD\x0E\x00\x00\rIMGSHP1A1C1D8F200L440R165T315B\x1D";
+	//memcpy(&outSerial[2], str.data(), str.length());
+	//outSerial[1] = str.length();
+	//DWORD bytesWritten = 0;
+	//if (!WriteFile(hDevice.get(), outSerial, sizeof(outSerial), &bytesWritten, &overlapped) && GetLastError() != ERROR_IO_PENDING)
+	//{
+	//	THROW_LAST_ERROR_MSG("WriteFile failed to send IMGSHIP command");
+	//}
+
+	//THROW_LAST_ERROR_IF(!GetOverlappedResult(hDevice.get(), &overlapped, &bytesWritten, TRUE));
+	//WriteSerial(hDevice, "\x16M\x0DMETDES1!\x0d");
+	//WriteSerial(hDevice, "\x44");
+	//Sleep(5000);
+	//WriteSerial(hDevice, "\x45");
+	//WriteSerial(hDevice, "\x16M\x0dIMGSNP1P1T1L;IMGSHP6F75K26U!");
+	//WriteSerial(hDevice, "\x16M\x0dIMGSNP1P1T1L!");
+
 	// Start reading
+	size_t offset = 0;
+	int readNo = 0;
 	while (true)
 	{
 		DWORD bytesRead = 0;
@@ -144,15 +233,48 @@ void listen_to_scanner(const std::wstring& path)
 
 		// Get result
 		THROW_LAST_ERROR_IF(!GetOverlappedResult(hDevice.get(), &overlapped, &bytesRead, TRUE));
-		std::wcout << L"Read " << bytesRead << L" bytes" << std::endl;
+		//std::wcout << L"Read " << bytesRead << L" bytes" << std::endl;
 
-		// Convert to hex
+		//// Convert to hex
 		std::wcout << L"Raw  " ;
 		for (DWORD i = 0; i < bytesRead; i++)
 		{
 			std::wcout << std::hex << std::setfill(L'0') << std::setw(2) << (int)buf1[i];
 		}
 		std::wcout << std::endl;
+
+		// Print each value
+		//for (int i = 0; i < caps.NumberInputValueCaps; i++)
+		//{
+		//	if (inputCaps[i].Range.UsageMin == 0xfe) continue;
+
+		//	ULONG value = 0;
+		//	auto result = HidP_GetUsageValue(HidP_Input, inputCaps[i].UsagePage, 0, inputCaps[i].Range.UsageMin, &value, preparsedData.get(), (PCHAR)buf1, bytesRead);
+		//	if (result != HIDP_STATUS_SUCCESS)
+		//	{
+		//		std::wcout << L"HidP_GetUsageValue " << std::hex << inputCaps[i].Range.UsageMin << L" failed with status " << result << std::endl;
+		//		continue;
+		//	}
+
+		//	std::wcout << L"Usage " << std::hex << inputCaps[i].Range.UsageMin << L" page " << inputCaps[i].UsagePage << L" = " << value << std::endl;
+		//}
+
+		// Print each button
+		//USAGE usages[256];
+		//ULONG usageCount = 256;
+		//THROW_IF_NTSTATUS_FAILED(HidP_GetUsages(HidP_Input, 0, 0, usages, &usageCount, preparsedData.get(), (PCHAR)buf1, bytesRead));
+		//for (ULONG i = 0; i < usageCount; i++)
+		//{
+		//	std::wcout << L"Button " << std::hex << usages[i] << std::endl;
+		//}
+		
+		// Length is usage 0x3b
+		ULONG dataLength = 0;
+		if (HidP_GetUsageValue(HidP_Input, 0x01, 0, 0x3b, &dataLength, preparsedData.get(), (PCHAR)buf1, bytesRead) != HIDP_STATUS_SUCCESS)
+		{
+			std::wcout << L"HidP_GetUsageValue for length failed: " << GetLastError() << std::endl;
+			continue;
+		}
 
 		// Parse input report
 		memset(buf2, 0, sizeof(buf2));
@@ -162,32 +284,76 @@ void listen_to_scanner(const std::wstring& path)
 			std::wcout << L"HidP_GetUsageValueArray failed with status " << status << std::endl;
 			continue;
 		}
-		std::cout << "Data " << buf2 << std::endl;
 
-		// Print each value
-		for (int i = 0; i < caps.NumberInputValueCaps; i++)
+		memcpy(data + offset, buf2, dataLength);
+		offset += dataLength;
+
+		// Continuation is button usage 0xff, check via HidP_GetUsages
+		USAGE continuationUsage = 0xff;
+		ULONG continuationUsageCount = 1;
+		auto result = HidP_GetUsages(HidP_Input, 0x8c, 0, &continuationUsage, &continuationUsageCount, preparsedData.get(), (PCHAR)buf1, bytesRead);
+		if (result != HIDP_STATUS_SUCCESS)
 		{
-			if (inputCaps[i].Range.UsageMin == 0xfe) continue;
+			std::wcout << L"HidP_GetUsages failed" << result << std::endl;
+			continue;
+		}
+		if (continuationUsageCount == 0)
+		{
+			// copy all data to last.bin
+			readNo += 1;
+			std::stringstream filename;
+			filename << "last" << readNo << ".bin";
+			std::string filenameStr = filename.str();
+			std::cout << "Writing " << filenameStr << " with " << offset << " bytes" << std::endl;
 
-			ULONG value = 0;
-			auto result = HidP_GetUsageValue(HidP_Input, inputCaps[i].UsagePage, 0, inputCaps[i].Range.UsageMin, &value, preparsedData.get(), (PCHAR)buf1, bytesRead);
-			if (result != HIDP_STATUS_SUCCESS)
-			{
-				std::wcout << L"HidP_GetUsageValue " << std::hex << inputCaps[i].Range.UsageMin << L" failed with status " << result << std::endl;
-				continue;
-			}
+			std::ofstream outFile(filenameStr.c_str(), std::ios::binary | std::ios::trunc);
+			outFile.write(reinterpret_cast<const char*>(data), offset);
 
-			std::wcout << L"Usage " << std::hex << inputCaps[i].Range.UsageMin << L" page " << inputCaps[i].UsagePage << L" = " << value << std::endl;
+			//std::cout << "Data " << std::string(data, data + offset) << std::endl;
+			offset = 0; // Reset offset for next read
+			WriteSerial(hDevice, "\u001b7,");
 		}
 
-		// Print each button
-		USAGE usages[256];
-		ULONG usageCount = 256;
-		THROW_IF_NTSTATUS_FAILED(HidP_GetUsages(HidP_Input, 0, 0, usages, &usageCount, preparsedData.get(), (PCHAR)buf1, bytesRead));
-		for (ULONG i = 0; i < usageCount; i++)
-		{
-			std::wcout << L"Button " << std::hex << usages[i] << std::endl;
-		}
+		//std::cout << "Data " << buf2 << std::endl;
+
+		////WriteSerial(hDevice, "\u001b8,");
+
+		////// Disable the scanner for 1s
+		////std::unique_ptr<CHAR[]> controlReport(new CHAR[caps.OutputReportByteLength]);
+		////memset(controlReport.get(), 0, caps.OutputReportByteLength);
+		////controlReport[0] = 4;
+		////controlReport[1] = 0x2;
+		//////THROW_IF_NTSTATUS_FAILED(HidP_InitializeReportForID(HidP_Output, 4, preparsedData.get(), controlReport.get(), caps.OutputReportByteLength));
+		//////USAGE preventReadUsage = preventRead.Range.UsageMin;
+		//////ULONG preventReadUsageCount = 1;
+		//////THROW_IF_NTSTATUS_FAILED(HidP_SetUsages(HidP_Output, preventRead.UsagePage, 0, &preventReadUsage, &preventReadUsageCount,
+		//////	preparsedData.get(), controlReport.get(), caps.OutputReportByteLength));
+		//////THROW_HR_IF(HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND), preventReadUsageCount != 1);
+
+		////DWORD bytesWritten = 0;
+		////if (!WriteFile(hDevice.get(), controlReport.get(), caps.OutputReportByteLength, &bytesWritten, &overlapped)
+		////	&& GetLastError() != ERROR_IO_PENDING)
+		////{
+		////	THROW_LAST_ERROR();
+		////}
+
+		////THROW_LAST_ERROR_IF(!GetOverlappedResult(hDevice.get(), &overlapped, &bytesWritten, TRUE));
+
+		////Sleep(1000);
+
+		//////THROW_IF_NTSTATUS_FAILED(HidP_UnsetUsages(HidP_Output, preventRead.UsagePage, 0, &preventReadUsage, &preventReadUsageCount,
+		//////	preparsedData.get(), controlReport.get(), caps.OutputReportByteLength));
+		//////THROW_HR_IF(HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND), preventReadUsageCount != 1);
+		////controlReport[1] = 0;
+
+		////bytesWritten = 0;
+		////if (!WriteFile(hDevice.get(), controlReport.get(), caps.OutputReportByteLength, &bytesWritten, &overlapped)
+		////	&& GetLastError() != ERROR_IO_PENDING)
+		////{
+		////	THROW_LAST_ERROR();
+		////}
+
+		////THROW_LAST_ERROR_IF(!GetOverlappedResult(hDevice.get(), &overlapped, &bytesWritten, TRUE));
 	}
 }
 

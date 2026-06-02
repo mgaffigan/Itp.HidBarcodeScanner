@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Itp.HidBarcodeScanner
 {
@@ -138,5 +139,21 @@ namespace Itp.HidBarcodeScanner
                 }
             }
         }
+
+        private HidScannerClaim? FirstOrDefault()
+        {
+            lock (SyncRoot)
+            {
+                return Scanners.FirstOrDefault();
+            }
+        }
+
+#if NET
+        public async Task<ReadOnlyMemory<byte>> ImageSnapAsync(CancellationToken ct)
+        {
+            var scanner = FirstOrDefault() ?? throw new IndexOutOfRangeException("No scanner connected.");
+            return await scanner.ImageSnapAsync(ct);
+        }
+#endif
     }
 }

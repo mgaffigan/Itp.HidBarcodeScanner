@@ -10,6 +10,7 @@
         <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
             <CheckBox x:Name="cbEnable" Content="Enable Scanner" Checked="cbEnable_Checked" Unchecked="cbEnable_Unchecked" IsChecked="True" VerticalAlignment="Center" />
             <CheckBox x:Name="cbDelay" Content="Delay" VerticalAlignment="Center" Margin="5,0,0,0" />
+            <Button x:Name="btImageSnap" Content="_Snap Image" Width="75" Height="23" Margin="5,0,0,0" Click="btImageSnap_Click" />
         </StackPanel>
         <TextBox x:Name="tb" AcceptsReturn="True" />
     </DockPanel>

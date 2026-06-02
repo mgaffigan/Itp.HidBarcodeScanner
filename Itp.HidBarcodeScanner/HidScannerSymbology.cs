@@ -18,6 +18,8 @@ namespace Itp.HidBarcodeScanner
         UpcEan13 = 0x5d4530,
         Pdf417 = 0x5d4c32,
         QRCode = 0x5d5131,
-        AztecCode = 0x5d7a30
+        AztecCode = 0x5d7a30,
+        SerialImageData = 0x5d5830,
+        SerialCommandData = 0x5d5a36
     }
 }

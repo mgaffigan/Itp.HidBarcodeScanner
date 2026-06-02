@@ -11,6 +11,10 @@ using System.Reflection;
 #endif
 using System.Runtime.InteropServices;
 using System.Threading;
+#if NET
+using System.Text;
+using System.Threading.Channels;
+#endif
 using System.Threading.Tasks;
 
 namespace Itp.HidBarcodeScanner;
@@ -21,7 +25,13 @@ class HidScannerClaim : IDisposable
     private readonly SynchronizationContext SyncCtx;
     private readonly Task ReadPromise;
     private readonly CancellationTokenSource cts;
+    private int OutputReportByteLength;
+    private FileStream? OutputFileStream;
+    private readonly SemaphoreSlim ExclusiveFlag = new SemaphoreSlim(1, 1);
     private bool handlerPending;
+#if NET
+    private Action<HidScanReceivedEventArgs>? BeforeScanReceived;
+#endif
 
     public event EventHandler<HidScanReceivedEventArgs>? ScanReceived;
     public event UnhandledExceptionEventHandler? Exception;
@@ -56,9 +66,22 @@ class HidScannerClaim : IDisposable
             using var fs = new FileStream(fh, FileAccess.ReadWrite, bufferSize: 0, isAsync: true);
             MungeFilestreamIntoAPipe(fs);
             using var hid = new HidDescriptor(fh);
+            this.OutputFileStream = fs;
+            this.OutputReportByteLength = hid.OutputReportByteLength;
             var scanReportID = hid.GetReportIdForValueCap(0x8c, 0xfe);
             var ScanData = new MemoryStream();
             var duration = Stopwatch.StartNew();
+
+#if NET
+            if (IsXenon1900)
+            {
+                // https://sps-support.honeywell.com/s/article/HSM-Imager-does-not-go-off-when-disabling-with-OPOS-controls
+                // https://sps-support.honeywell.com/s/article/How-can-the-Host-control-the-scanner-and-verify-the-data
+                // https://sps-support.honeywell.com/s/article/How-to-implement-commands-in-C-for-Honeywell-barcode-scanner-in-serial-emulation
+                await WritePacketAsync("\x16M\x0DHSTACK1;METDES1!\x0d");
+                await WritePacketAsync("E");
+            }
+#endif
 
             while (true)
             {
@@ -88,6 +111,13 @@ class HidScannerClaim : IDisposable
                     Exception?.Invoke(this, new UnhandledExceptionEventArgs(ex, false));
                 }
             }
+
+#if NET
+            if (IsXenon1900)
+            {
+                await WritePacketAsync("D");
+            }
+#endif
         }
         catch (Exception ex)
         {
@@ -96,6 +126,7 @@ class HidScannerClaim : IDisposable
         }
         finally
         {
+            this.OutputFileStream = null;
             Debug.WriteLine("Released HID device: " + DeviceId);
         }
     }
@@ -144,6 +175,19 @@ class HidScannerClaim : IDisposable
         accumulatedScanData.SetLength(0);
 
         var args = new HidScanReceivedEventArgs(scannedData, (HidScannerSymbology)symbology);
+#if NET
+        if (BeforeScanReceived is { } bsr)
+        {
+            Debug.WriteLine($"Received {args.Symbology} packet {scannedData.Length} bytes");
+            bsr(args);
+            return;
+        }
+#endif
+        if (args.Symbology == HidScannerSymbology.SerialCommandData
+            || args.Symbology == HidScannerSymbology.SerialImageData)
+        {
+            return;
+        }
         if (handlerPending)
         {
             Debug.WriteLine($"Scan received while handler pending, dropping: {args}");
@@ -159,12 +203,25 @@ class HidScannerClaim : IDisposable
                 {
                     await deferral.ConfigureAwait(false);
                 }
+#if NET
+                if (IsXenon1900)
+                {
+                    await WritePacketAsync("\x001b7,\x14");
+                }
+#endif
             }
             catch (Exception ex)
             {
                 try
                 {
                     Exception?.Invoke(this, new UnhandledExceptionEventArgs(ex, false));
+
+#if NET
+                    if (IsXenon1900)
+                    {
+                        await WritePacketAsync("\x001b8,\x14");
+                    }
+#endif
                 }
                 catch (Exception ex2)
                 {
@@ -177,6 +234,124 @@ class HidScannerClaim : IDisposable
             }
         }, null);
     }
+
+#if NET
+    // Only supported on Honeywell Xenon 1900
+    internal bool IsXenon1900 => DeviceId.Contains("VID_0C2E&PID_0907", StringComparison.Ordinal);
+
+    public async Task<ReadOnlyMemory<byte>> ImageSnapAsync(CancellationToken ct)
+    {
+        if (!IsXenon1900)
+        {
+            throw new NotSupportedException("Image snap is not supported for this device");
+        }
+        var fs = OutputFileStream ?? throw new ObjectDisposedException(nameof(HidScannerClaim));
+        var packets = Channel.CreateUnbounded<HidScanReceivedEventArgs>();
+
+        await ExclusiveFlag.WaitAsync(ct);
+        this.BeforeScanReceived = args => _ = packets.Writer.TryWrite(args);
+        try
+        {
+            var captureOptions
+                // Capture in photo mode, beep, Wait for trigger
+                = "1P1B1T"
+                // Enable LEDs
+                + "1L"
+                // Set target white level
+                + "125W";
+            var formatOptions =
+                // JPEG @ % quality
+                "6F75J"
+                // Gamma correction
+                + "0K"
+                // Document filter
+                + "0U";
+            await WritePacketAsync($"\x16M\x0dIMGSNP{captureOptions}!").ConfigureAwait(false);
+            await AssertPacketAsync($"IMGSNP{captureOptions}\x06!").ConfigureAwait(false);
+
+            await WritePacketAsync($"\x16M\x0dIMGSHP{formatOptions}!").ConfigureAwait(false);
+            var firstPacket = await ReadPacketAsync(HidScannerSymbology.SerialImageData);
+            if (firstPacket.Length < 7
+                || !(firstPacket[0] == 0x16 && firstPacket[1] == 0xfe && firstPacket[6] == 0x0d))
+            {
+                throw new FormatException($"Unexpected image ship response {Convert.ToHexString(firstPacket)}");
+            }
+            var readLen = (firstPacket[2] << 0)
+                | (firstPacket[3] << 8)
+                | (firstPacket[4] << 16)
+                | (firstPacket[5] << 24);
+
+            var result = new MemoryStream();
+            result.Write(firstPacket.AsSpan(7));
+            while (result.Length < readLen)
+            {
+                result.Write(await ReadPacketAsync(HidScannerSymbology.SerialImageData).ConfigureAwait(false));
+            }
+
+            await AssertPacketAsync($"IMGSHP{formatOptions}\x06!").ConfigureAwait(false);
+
+            var resultBuffer = result.GetBuffer().AsMemory(0, (int)result.Length);
+            var expectedHTagHeader = Encoding.ASCII.GetBytes("IMGSHP2P");
+            if (!expectedHTagHeader.SequenceEqual(result.GetBuffer().Take(expectedHTagHeader.Length)))
+            {
+                throw new FormatException($"Unexpected format of HTAG buffer: {Convert.ToHexString(resultBuffer.Span)}");
+            }
+
+            // Find the end of the header
+            var ix = resultBuffer.Span.IndexOf((byte)0x1d);
+            if (ix < 0)
+            {
+                throw new FormatException($"Unexpected format of HTAG buffer: {Convert.ToHexString(resultBuffer.Span)}");
+            }
+
+            // Skip the header
+            return resultBuffer.Slice(ix + 1);
+        }
+        finally
+        {
+            this.BeforeScanReceived = null;
+            ExclusiveFlag.Release();
+        }
+
+        async Task AssertPacketAsync(string s)
+        {
+            var readPacket = await ReadPacketAsync(HidScannerSymbology.SerialCommandData).ConfigureAwait(false);
+            var expected = Encoding.ASCII.GetBytes(s);
+            if (!readPacket.SequenceEqual(expected))
+            {
+                throw new FormatException($"Expected response {Convert.ToHexString(expected)} received {Convert.ToHexString(readPacket)}");
+            }
+        }
+
+        async Task<byte[]> ReadPacketAsync(HidScannerSymbology expectedSymbology)
+        {
+            var result = await packets.Reader.ReadAsync(ct).ConfigureAwait(false);
+            if (result.Symbology != expectedSymbology)
+            {
+                throw new FormatException($"Expected response with symbology {expectedSymbology}, " +
+                    $"received {result.Symbology}: {Convert.ToHexString(result.RawData)}");
+            }
+            return result.RawData;
+        }
+    }
+
+    private async Task WritePacketAsync(string s)
+    {
+        var fs = OutputFileStream ?? throw new ObjectDisposedException(nameof(HidScannerClaim));
+        if (s.Length + 2 > OutputReportByteLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(s), $"Packet length {s.Length} exceeds output report length {OutputReportByteLength}");
+        }
+
+        Debug.WriteLine($"Writing packet: {s}");
+        var packet = new byte[OutputReportByteLength];
+        packet[0] = 253;
+        packet[1] = (byte)s.Length;
+        Encoding.ASCII.GetBytes(s, packet.AsSpan(2));
+        await fs.WriteAsync(packet).ConfigureAwait(false);
+        await fs.FlushAsync().ConfigureAwait(false);
+    }
+#endif
 
     internal static Task<HidScannerClaim> CreateAsync(string id, SynchronizationContext syncCtx)
     {
@@ -191,6 +366,7 @@ class HidDescriptor : IDisposable
     private readonly SafeHidPreparsedDataHandle preparsedData;
     private readonly HIDP_CAPS caps;
     public int InputReportByteLength => caps.InputReportByteLength;
+    public int OutputReportByteLength => caps.OutputReportByteLength;
     public int NumberInputButtonCaps => caps.NumberInputButtonCaps;
 
     public HidDescriptor(SafeFileHandle handle)

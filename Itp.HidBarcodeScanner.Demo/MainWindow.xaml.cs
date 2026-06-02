@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -34,6 +35,18 @@ public partial class MainWindow : Window
 
     private async Task Scanner_ScanReceivedAsync(object? sender, HidScanReceivedEventArgs e)
     {
+        if (cbDelay.IsChecked.GetValueOrDefault())
+        {
+            e.TakeDeferral(Scanner_ScanReceivedAsync(sender, e));
+        }
+        else
+        {
+            tb.Text = e.TextData;
+        }
+    }
+
+    private async Task Scanner_ScanReceivedAsync(object sender, HidScanReceivedEventArgs e)
+    {
         tb.Text = e.TextData;
 #if NET
         if (Random.Shared.Next(5) == 0)
@@ -64,5 +77,23 @@ public partial class MainWindow : Window
     {
         Scanner?.Dispose();
         Scanner = null;
+    }
+
+    private async void btImageSnap_Click(object sender, RoutedEventArgs e)
+    {
+#if NET
+        var imageData = await Scanner.ImageSnapAsync(default);
+        var sfd = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "JPEG Image (*.jpg)|*.jpg|All files (*.*)|*.*"
+        };
+        if (sfd.ShowDialog() == true)
+        {
+            using var fs = File.Create(sfd.FileName);
+            await fs.WriteAsync(imageData, default);
+        }
+#else
+        MessageBox.Show("Image snapping is not supported in this version of the library.");
+#endif
     }
 }

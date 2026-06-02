@@ -25,3 +25,8 @@ Tested devices:
 
 * Honeywell Xenon 1900
 * Zebra DS2208
+
+## Honeywell Xenon 1900 Extras
+
+* [Command Support / disablement](https://sps-support.honeywell.com/s/article/How-to-implement-commands-in-C-for-Honeywell-barcode-scanner-in-serial-emulation)
+* [Image ship](https://sps-support.honeywell.com/s/article/How-to-interpret-the-IMGSHP-response)

@@ -23,7 +23,8 @@ namespace HidBarcodeScannerDemo
         { 
             var sta = HidDevice.GetDeviceSelector(0x8c, 0x02);
             var devices = await DeviceInformation.FindAllAsync(sta);
-            var hiddev = await HidDevice.FromIdAsync(devices.FirstOrDefault().Id, Windows.Storage.FileAccessMode.Read);
+            var id = devices.FirstOrDefault().Id;
+            var hiddev = await HidDevice.FromIdAsync(id, Windows.Storage.FileAccessMode.Read);
             var scanner = new HidBarcodeScanner(hiddev);
             Console.ReadLine();
         }
