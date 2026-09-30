@@ -6,20 +6,19 @@ using System.Windows.Threading;
 using DirectN;
 using DirectN.Extensions;
 using DirectN.Extensions.Com;
-using ComObject = DirectN.Extensions.Com.ComObject;
 using WinRtSurface = Windows.Graphics.DirectX.Direct3D11.IDirect3DSurface;
 
-namespace Itp.Handheld.WpfClient.Capture.WinRt;
+namespace Itp.WpfCamera;
 
 // D3DImage only takes a D3D9Ex surface, so frames reach it through a texture shared with D3D11, never via the CPU.
 //
-// Only TryPresent is entered from the frame reader thread; the UI-facing entry points assert the
+// Only Present is entered from the frame reader thread; the UI-facing entry points assert the
 // dispatcher rather than marshalling onto it. The private resource helpers below run on whichever
 // thread holds _gate.
 //
 //   frame reader thread                       UI thread
 //   -------------------                       ---------
-//   TryPresent                                ctor, AttachBackBuffer, Dispose
+//   Present                                   ctor, AttachBackBuffer, Dispose
 //     lock (_gate) { copy to _destination11 }
 //     (gate released)
 //     InvokeAsync ---------------------------> PresentOnUiThread
@@ -32,38 +31,68 @@ internal sealed class WinRtCameraPreview : IDisposable
     private readonly object _gate = new();
     private readonly D3DImage _image = new();
     private readonly Dispatcher _dispatcher;
+    private readonly Action<Exception> _failed;
 
     private IComObject<IDirect3D9Ex>? _d3d9;
     private IComObject<IDirect3DDevice9Ex>? _device9;
     private IComObject<IDirect3DTexture9>? _texture9;
     private IComObject<IDirect3DSurface9>? _surface9;
-    private IntPtr _surface9Ptr;
     private HANDLE _sharedHandle;
 
     private IComObject<ID3D11Device>? _device11;
     private IComObject<ID3D11DeviceContext>? _context11;
     private IComObject<ID3D11Texture2D>? _destination11;
+    private IComObject<ID3D11Query>? _copied11;
+
+    // Long enough for any real copy; a hung GPU fails the camera instead of blocking frames forever.
+    private static readonly TimeSpan CopyTimeout = TimeSpan.FromSeconds(1);
 
     private int _width;
     private int _height;
-    private int _presenting;
+    // Both guarded by _gate.
+    private bool _presentPending;
     private bool _disposed;
 
     // Built at the format size up front, or the bound Image lays out at 0x0 and stays black.
-    public WinRtCameraPreview(Dispatcher dispatcher, int width, int height)
+    // failed is called on the UI thread when presenting fails; the owner reports it and tears down.
+    public WinRtCameraPreview(Dispatcher dispatcher, int width, int height, Action<Exception> failed)
     {
         ArgumentNullException.ThrowIfNull(dispatcher);
+        ArgumentNullException.ThrowIfNull(failed);
         dispatcher.VerifyAccess();
 
         _dispatcher = dispatcher;
-        _image.IsFrontBufferAvailableChanged += (_, _) => AttachBackBuffer();
+        _failed = failed;
+        _image.IsFrontBufferAvailableChanged += Image_IsFrontBufferAvailableChanged;
 
-        lock (_gate)
+        try
         {
-            EnsureD3D9(width, height);
-        }
+            lock (_gate)
+            {
+                EnsureD3D9(width, height);
+            }
 
-        AttachBackBuffer();
+            AttachBackBuffer();
+        }
+        catch
+        {
+            // Nobody else can dispose a preview whose constructor threw.
+            Dispose();
+            throw;
+        }
+    }
+
+    // Raised by WPF, so an exception here would reach the dispatcher.
+    private void Image_IsFrontBufferAvailableChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        try
+        {
+            AttachBackBuffer();
+        }
+        catch (Exception ex)
+        {
+            _failed(ex);
+        }
     }
 
     private void AttachBackBuffer()
@@ -73,7 +102,7 @@ internal sealed class WinRtCameraPreview : IDisposable
         // The frame thread can free and rebuild the surface.
         lock (_gate)
         {
-            if (_disposed || _surface9Ptr == IntPtr.Zero || !_image.IsFrontBufferAvailable)
+            if (_disposed || _surface9 is null || !_image.IsFrontBufferAvailable)
             {
                 return;
             }
@@ -81,7 +110,7 @@ internal sealed class WinRtCameraPreview : IDisposable
             _image.Lock();
             try
             {
-                _image.SetBackBuffer(D3DResourceType.IDirect3DSurface9, _surface9Ptr);
+                _image.SetBackBuffer(_surface9);
             }
             finally
             {
@@ -93,57 +122,28 @@ internal sealed class WinRtCameraPreview : IDisposable
     public ImageSource Image => _image;
 
     // Runs on the frame reader's thread.
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "VSTHRD001:Avoid legacy thread switching APIs", Justification = "No JoinableTaskContext in this app; Dispatcher is the marshalling primitive")]
-    public bool TryPresent(WinRtSurface frameSurface)
+    public void Present(WinRtSurface frameSurface)
     {
-        if (_disposed)
-        {
-            return false;
-        }
-
         var description = frameSurface.Description;
-
-        // Claimed before the copy, so only one copy + present cycle ever runs; drop frames rather
-        // than queue them. Monitor is no use: the claim is released on the thread that presents.
-        if (Interlocked.CompareExchange(ref _presenting, 1, 0) != 0)
+        using var source = frameSurface.GetTexture2D();
+        lock (_gate)
         {
-            return true;
-        }
-
-        bool queued = false;
-        try
-        {
-            using (var source = GetTexture(frameSurface))
+            // Only one copy + present cycle ever runs; drop frames rather than queue them.
+            if (_disposed || _presentPending)
             {
-                lock (_gate)
-                {
-                    if (_disposed)
-                    {
-                        return false;
-                    }
-
-                    EnsureD3D11(source, description.Width, description.Height);
-                    if (_context11 is null || _destination11 is null)
-                    {
-                        return false;
-                    }
-
-                    _context11.Object.CopyResource(_destination11.Object, source.Object);
-                    _context11.Object.Flush();
-                }
+                return;
             }
 
-            _ = _dispatcher.InvokeAsync(PresentOnUiThread);
-            queued = true;
-            return true;
+            EnsureD3D11(source, description.Width, description.Height);
+            _context11!.Object.CopyResource(_destination11!.Object, source.Object);
+
+            // Flush alone only submits the copy; WPF reads the surface from another device, so
+            // wait for the copy to finish or it can show a partial frame.
+            _context11.WaitForGpu(_copied11!, CopyTimeout);
+            _presentPending = true;
         }
-        finally
-        {
-            if (!queued)
-            {
-                Volatile.Write(ref _presenting, 0);
-            }
-        }
+
+        _ = _dispatcher.InvokeAsync(PresentOnUiThread);
     }
 
     private void PresentOnUiThread()
@@ -155,7 +155,8 @@ internal sealed class WinRtCameraPreview : IDisposable
             // The frame thread can free and rebuild the surface and change its size.
             lock (_gate)
             {
-                if (_disposed || !_image.IsFrontBufferAvailable || _surface9Ptr == IntPtr.Zero)
+                _presentPending = false;
+                if (_disposed || !_image.IsFrontBufferAvailable || _surface9 is null)
                 {
                     return;
                 }
@@ -163,7 +164,7 @@ internal sealed class WinRtCameraPreview : IDisposable
                 _image.Lock();
                 try
                 {
-                    _image.SetBackBuffer(D3DResourceType.IDirect3DSurface9, _surface9Ptr);
+                    _image.SetBackBuffer(_surface9);
                     _image.AddDirtyRect(new Int32Rect(0, 0, _width, _height));
                 }
                 finally
@@ -172,13 +173,11 @@ internal sealed class WinRtCameraPreview : IDisposable
                 }
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // A lost device surfaces here; the next frame rebuilds the resources.
-        }
-        finally
-        {
-            Volatile.Write(ref _presenting, 0);
+            // A lost device surfaces here.  Report it so the owner tears down rather than
+            // presenting against a broken device.
+            _failed(ex);
         }
     }
 
@@ -193,21 +192,21 @@ internal sealed class WinRtCameraPreview : IDisposable
             return;
         }
 
+        // A previous attempt may have failed partway; release what it left before rebuilding.
+        ReleaseD3D11();
         _device11 = source.GetDevice();
         _context11 = _device11.GetImmediateContext();
+        _copied11 = _device11.CreateEventQuery();
 
         // MediaCapture shares the device with the frame server, so guard concurrent use.
-        if (_device11.Object is ID3D11Multithread multithread)
-        {
-            multithread.SetMultithreadProtected(true);
-        }
+        _device11.SetMultithreadProtected(true);
 
         _destination11 = _device11.OpenSharedResource<ID3D11Texture2D>(_sharedHandle);
     }
 
     private void EnsureD3D9(int width, int height)
     {
-        if (_surface9Ptr != IntPtr.Zero && _width == width && _height == height)
+        if (_surface9 is not null && _width == width && _height == height)
         {
             return;
         }
@@ -246,72 +245,55 @@ internal sealed class WinRtCameraPreview : IDisposable
         _sharedHandle = shared;
 
         _surface9 = _texture9.GetSurfaceLevel(0);
-
-        // D3DImage only takes a raw interface pointer.
-        _surface9Ptr = _surface9.ToComInstance();
     }
 
-    // The caller owns the returned reference and releases it per frame.
-    private static IComObject<ID3D11Texture2D> GetTexture(WinRtSurface surface)
-    {
-        var unknown = ComObject.ToComInstance(surface);
-        try
-        {
-            using var access = ComObject.FromPointer<IDirect3DDxgiInterfaceAccess>(
-                ComObject.QueryInterface<IDirect3DDxgiInterfaceAccess>(unknown, throwOnError: true))!;
-            access.Object.GetInterface(typeof(ID3D11Texture2D).GUID, out var texturePtr).ThrowOnError();
-            return ComObject.FromPointer<ID3D11Texture2D>(texturePtr)!;
-        }
-        finally
-        {
-            ComObject.Release(unknown);
-        }
-    }
-
+    // Nulled as well as disposed: EnsureD3D9 and EnsureD3D11 rebuild whatever is null.
     private void ReleaseResources()
     {
-        _destination11?.Dispose();
-        _context11?.Dispose();
-        _device11?.Dispose();
-
-        if (_surface9Ptr != IntPtr.Zero)
-        {
-            Marshal.Release(_surface9Ptr);
-            _surface9Ptr = IntPtr.Zero;
-        }
-
-        _surface9?.Dispose();
-        _texture9?.Dispose();
-        _device9?.Dispose();
-        _d3d9?.Dispose();
+        ReleaseD3D11();
+        DisposeAndNull(ref _surface9);
+        DisposeAndNull(ref _texture9);
+        DisposeAndNull(ref _device9);
+        DisposeAndNull(ref _d3d9);
 
         _sharedHandle = default;
+    }
+
+    private void ReleaseD3D11()
+    {
+        DisposeAndNull(ref _destination11);
+        DisposeAndNull(ref _copied11);
+        DisposeAndNull(ref _context11);
+        DisposeAndNull(ref _device11);
+    }
+
+    private static void DisposeAndNull<T>(ref T? disposable) where T : class, IDisposable
+    {
+        disposable?.Dispose();
+        disposable = null;
     }
 
     public void Dispose()
     {
         _dispatcher.VerifyAccess();
 
-        _disposed = true;
+        _image.IsFrontBufferAvailableChanged -= Image_IsFrontBufferAvailableChanged;
         lock (_gate)
         {
-            ReleaseResources();
-        }
+            _disposed = true;
 
-        ClearBackBuffer();
-    }
-
-    private void ClearBackBuffer()
-    {
-        try
-        {
+            // Detach WPF from the surface before releasing it.
             _image.Lock();
-            _image.SetBackBuffer(D3DResourceType.IDirect3DSurface9, IntPtr.Zero);
-            _image.Unlock();
-        }
-        catch (Exception)
-        {
-            // Nothing useful to do while tearing down.
+            try
+            {
+                _image.SetBackBuffer(null);
+            }
+            finally
+            {
+                _image.Unlock();
+            }
+
+            ReleaseResources();
         }
     }
 }

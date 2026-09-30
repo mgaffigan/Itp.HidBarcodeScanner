@@ -4,7 +4,39 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    Title="Itp.WpfCamera Demo" Height="450" Width="800">
-    <Grid>
-    </Grid>
+    Title="Itp.WpfCamera Demo" Height="600" Width="900">
+    <TabControl>
+        <TabItem Header="Capture dialog">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
+                    <Button x:Name="btCapture" Content="_Capture..." Width="90" Height="23" Margin="5" Click="btCapture_Click" />
+                    <Button x:Name="btSave" Content="_Save..." Width="90" Height="23" Margin="0,5,5,5" Click="btSave_Click" />
+                </StackPanel>
+                <ListBox x:Name="lbImages" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Image Source="{Binding}" MaxWidth="200" MaxHeight="150" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </TabItem>
+        <TabItem Header="Live preview">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
+                    <ComboBox x:Name="cbCamera" Width="300" Margin="5" DisplayMemberPath="DisplayName" />
+                    <Button x:Name="btOpen" Content="_Open" Width="75" Height="23" Margin="0,5,5,5" Click="btOpen_Click" />
+                    <Button x:Name="btClosePreview" Content="C_lose" Width="75" Height="23" Margin="0,5,5,5" Click="btClosePreview_Click" />
+                </StackPanel>
+                <Grid Background="Black">
+                    <Image x:Name="imgPreview" Stretch="Uniform" />
+                </Grid>
+            </DockPanel>
+        </TabItem>
+    </TabControl>
 </Window>

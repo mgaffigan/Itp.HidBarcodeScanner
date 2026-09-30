@@ -1,58 +1,71 @@
 ﻿using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using Esatto;
-using Microsoft.Extensions.Logging;
 using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
 using Windows.Media.MediaProperties;
 
-namespace Itp.Handheld.WpfClient.Capture.WinRt;
+namespace Itp.WpfCamera;
 
-internal sealed class WinRtCamera : IWpfCamera
+/// <summary>
+/// An open camera, with a GPU-only live <see cref="Preview"/> and still capture through the photo
+/// pipeline.  Must be opened, used, and disposed on a WPF dispatcher thread.
+/// </summary>
+public sealed class WinRtCamera : IDisposable
 {
     private readonly MediaCapture _capture;
     private readonly MediaFrameReader _reader;
     private readonly WinRtCameraPreview _preview;
     private readonly Dispatcher _dispatcher;
 
-    private int _failedRaised;
+    // Faulted by the first failure, from any thread; cancelled by Dispose.
+    private readonly TaskCompletionSource _failure = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private bool _disposed;
 
-    private WinRtCamera(MediaCapture capture, MediaFrameReader reader, WinRtCameraPreview preview,
-        Dispatcher dispatcher)
+    private WinRtCamera(MediaFrameSourceGroup group, MediaCapture capture, MediaFrameReader reader,
+        Dispatcher dispatcher, int width, int height)
     {
+        Group = group;
         _capture = capture;
         _reader = reader;
-        _preview = preview;
         _dispatcher = dispatcher;
+        _preview = new WinRtCameraPreview(dispatcher, width, height, RaiseFailed);
 
         _capture.Failed += Capture_Failed;
         _reader.FrameArrived += Reader_FrameArrived;
     }
 
-    public event EventHandler? Failed;
+    /// <summary>
+    /// The camera this was opened from.
+    /// </summary>
+    public MediaFrameSourceGroup Group { get; }
 
+    /// <summary>
+    /// The live preview, suitable for <see cref="System.Windows.Controls.Image.Source"/>.
+    /// </summary>
     public ImageSource Preview => _preview.Image;
 
-    internal static Task<IWpfCamera> OpenAsync(string id, Dispatcher dispatcher)
-        => OpenAsync(id, dispatcher, useConfiguredFormat: true);
-
-    // Awaited without ConfigureAwait throughout, so every continuation lands back on the dispatcher.
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "VSTHRD010:Invoke single-threaded types on Main thread", Justification = "No JoinableTaskContext; continuations resume on the dispatcher")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "VSTHRD109:Switch instead of assert in async methods", Justification = "No JoinableTaskContext; the assert is the contract")]
-    private static async Task<IWpfCamera> OpenAsync(string id, Dispatcher dispatcher,
-        bool useConfiguredFormat)
+    /// <summary>
+    /// Opens <paramref name="group"/> for exclusive control and starts the preview.  Must be called
+    /// on a WPF dispatcher thread.
+    /// </summary>
+    /// <param name="group">A camera from <see cref="WinRtCameraDeviceEnumerator.EnumerateAsync"/>.</param>
+    /// <param name="failed">
+    /// Optional notification, called once on the dispatcher thread if the opened camera later stops
+    /// unexpectedly (e.g. device disconnect or session lock).  The camera is unusable afterwards and
+    /// <see cref="CaptureAsync"/> throws, but it must still be disposed by its owner as usual.  Never
+    /// called for a camera that failed to open; throws instead.
+    /// </param>
+    /// <exception cref="InvalidOperationException">The camera could not be opened or started.</exception>
+    public static async Task<WinRtCamera> OpenAsync(MediaFrameSourceGroup group, UnhandledExceptionEventHandler? failed = null)
     {
-        ArgumentNullException.ThrowIfNull(id);
-        ArgumentNullException.ThrowIfNull(dispatcher);
-        dispatcher.VerifyAccess();
+        ArgumentNullException.ThrowIfNull(group);
+        var dispatcher = Dispatcher.FromThread(Thread.CurrentThread)
+            ?? throw new InvalidOperationException("A camera must be opened on a WPF dispatcher thread.");
 
-        var group = await MediaFrameSourceGroup.FromIdAsync(id)
-            ?? throw new InvalidOperationException("The camera is no longer available.");
-
+        // Awaited without ConfigureAwait throughout, so every continuation lands back on the dispatcher.
         MediaCapture? capture = null;
         MediaFrameReader? reader = null;
-        WinRtCameraPreview? preview = null;
         try
         {
             capture = new MediaCapture();
@@ -69,37 +82,43 @@ internal sealed class WinRtCamera : IWpfCamera
             var sourceInfo = group.SourceInfos.First(WinRtCameraDeviceEnumerator.IsColorVideoSource);
             var source = capture.FrameSources[sourceInfo.Id];
 
-            var configured = useConfiguredFormat ? ConfiguredFormat(id, source) : null;
-            if (configured is not null)
+            using var settings = CaptureCameraSettings.For(group.Id);
+            var formatIndex = settings.FormatIndex;
+            if (formatIndex >= 0)
             {
-                await source.SetFormatAsync(configured);
+                if (formatIndex >= source.SupportedFormats.Count)
+                {
+                    throw new InvalidOperationException(
+                        $"FormatIndex {formatIndex} configured for {settings.CameraKey} is out of range ({source.SupportedFormats.Count} formats).");
+                }
+
+                await source.SetFormatAsync(source.SupportedFormats[formatIndex]);
             }
 
             // Bgra8 is what makes the pipeline hand back a B8G8R8A8 surface D3DImage can take.
             reader = await capture.CreateFrameReaderAsync(source, MediaEncodingSubtypes.Bgra8);
 
             var video = source.CurrentFormat.VideoFormat;
-            preview = new WinRtCameraPreview(dispatcher, (int)video.Width, (int)video.Height);
-
-            var camera = new WinRtCamera(capture, reader, preview, dispatcher);
+            var camera = new WinRtCamera(group, capture, reader, dispatcher, (int)video.Width, (int)video.Height);
 
             // Owned by the camera now; keep the cleanup below from disposing them.
             capture = null;
             reader = null;
-            preview = null;
 
             try
             {
-                await camera.StartAsync();
-            }
-            catch when (configured is not null)
-            {
-                // An unusable configured format only fails at start; fall back rather than not open.
-                camera.Dispose();
-                StaticLogger.Logger.LogWarning(
-                    "Capture: configured FormatIndex for {Camera} could not be started; using the camera default.",
-                    CaptureCameraSettings.CameraKey(id));
-                return await OpenAsync(id, dispatcher, useConfiguredFormat: false);
+                var status = await camera._reader.StartAsync();
+                if (status != MediaFrameReaderStartStatus.Success)
+                {
+                    throw new InvalidOperationException(formatIndex >= 0
+                        ? $"The camera could not start ({status}) with FormatIndex {formatIndex} configured for {settings.CameraKey}."
+                        : $"The camera could not start ({status}).");
+                }
+
+                // A failure so far fails the open.  Any later one is seen by ReportFailure,
+                // since a continuation on an already-faulted task still runs.
+                camera.ThrowIfFailed();
+                camera.ReportFailure(failed);
             }
             catch
             {
@@ -111,55 +130,33 @@ internal sealed class WinRtCamera : IWpfCamera
         }
         finally
         {
-            preview?.Dispose();
             reader?.Dispose();
             capture?.Dispose();
         }
     }
 
-    private static MediaFrameFormat? ConfiguredFormat(string id, MediaFrameSource source)
+    /// <summary>
+    /// Captures a still through the photo pipeline, so it is not limited to the preview resolution.
+    /// </summary>
+    /// <returns>A frozen image at the camera's capture resolution.</returns>
+    /// <exception cref="InvalidOperationException">The camera has failed, or the capture failed.</exception>
+    public async Task<BitmapSource> CaptureAsync()
     {
-        var index = CaptureCameraSettings.For(id).FormatIndex;
-        if (index is not int i)
-        {
-            return null;
-        }
-
-        if (i < 0 || i >= source.SupportedFormats.Count)
-        {
-            StaticLogger.Logger.LogWarning(
-                "Capture: FormatIndex {Index} for {Camera} is out of range ({Count} formats); using the camera default.",
-                i, CaptureCameraSettings.CameraKey(id), source.SupportedFormats.Count);
-            return null;
-        }
-
-        return source.SupportedFormats[i];
-    }
-
-    private async Task StartAsync()
-    {
-        var status = await _reader.StartAsync();
-        if (status != MediaFrameReaderStartStatus.Success)
-        {
-            throw new InvalidOperationException($"The camera could not start ({status}).");
-        }
-    }
-
-    public async Task<IFrame> CaptureAsync()
-    {
+        _dispatcher.VerifyAccess();
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ThrowIfFailed();
 
-        // The photo pipeline, so stills are not limited to the preview resolution.
         var lowLag = await _capture.PrepareLowLagPhotoCaptureAsync(
             ImageEncodingProperties.CreateUncompressed(MediaPixelFormat.Bgra8));
         try
         {
             var photo = await lowLag.CaptureAsync();
+            using var thumbnail = photo.Thumbnail;
             using var frame = photo.Frame;
             using var bitmap = frame.SoftwareBitmap
                 ?? throw new InvalidOperationException("The camera returned a photo with no image data.");
 
-            return new WinRtFrame(bitmap.ToBitmapSource());
+            return bitmap.ToBitmapSource();
         }
         finally
         {
@@ -167,46 +164,75 @@ internal sealed class WinRtCamera : IWpfCamera
         }
     }
 
-    // Runs on a frame-reader thread.
-    private void Reader_FrameArrived(MediaFrameReader sender, MediaFrameArrivedEventArgs args)
+    private void ThrowIfFailed()
     {
-        using var reference = sender.TryAcquireLatestFrame();
-        var surface = reference?.VideoMediaFrame?.Direct3DSurface;
-        if (surface is null)
+        if (_failure.Task.Exception is { } failure)
         {
-            // Frames legitimately arrive empty while the reader is starting or stopping.
+            throw new InvalidOperationException("The camera has failed.", failure.InnerException);
+        }
+    }
+
+    // Resumes on the dispatcher, since it is started from OpenAsync on the dispatcher thread.  async
+    // void, like any event handler: if the owner's handler throws, that reaches the dispatcher
+    // rather than faulting a task nobody observes.
+    private async void ReportFailure(UnhandledExceptionEventHandler? failed)
+    {
+        Exception failure;
+        try
+        {
+            // Never completes successfully: faulted on failure, cancelled by Dispose.
+            await _failure.Task;
             return;
         }
-
-        using (surface)
+        catch (OperationCanceledException)
         {
-            try
+            return;
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+
+        // The owner may have disposed the camera while the failure was on its way here.
+        if (!_disposed)
+        {
+            failed?.Invoke(this, new UnhandledExceptionEventArgs(failure, isTerminating: false));
+        }
+    }
+
+    // Runs on a frame-reader thread, so nothing may escape it.
+    private void Reader_FrameArrived(MediaFrameReader sender, MediaFrameArrivedEventArgs args)
+    {
+        try
+        {
+            using var reference = sender.TryAcquireLatestFrame();
+            using var surface = reference?.VideoMediaFrame?.Direct3DSurface;
+            if (surface is null)
             {
-                _preview.TryPresent(surface);
+                // Frames legitimately arrive empty while the reader is starting or stopping.
+                return;
             }
-            catch (Exception)
-            {
-                // Likely device loss; report it rather than throw on a WinRT callback thread.
-                RaiseFailed();
-            }
+
+            _preview.Present(surface);
+        }
+        catch (Exception ex)
+        {
+            // Likely device loss; report it rather than throw on a WinRT callback thread.
+            RaiseFailed(ex);
         }
     }
 
     private void Capture_Failed(MediaCapture sender, MediaCaptureFailedEventArgs errorEventArgs)
-        => RaiseFailed();
+        => RaiseFailed(new InvalidOperationException(
+            $"The camera stopped unexpectedly: {errorEventArgs.Message} (0x{errorEventArgs.Code:X8})"));
 
-    // Failure can arrive on any thread and more than once; callers see it once, on the UI thread.
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "VSTHRD001:Avoid legacy thread switching APIs", Justification = "No JoinableTaskContext in this app; Dispatcher is the marshalling primitive")]
-    private void RaiseFailed()
-    {
-        if (Interlocked.Exchange(ref _failedRaised, 1) == 1)
-        {
-            return;
-        }
+    // Failure can arrive on any thread and more than once; only the first is kept.
+    private void RaiseFailed(Exception exception) => _failure.TrySetException(exception);
 
-        _ = _dispatcher.InvokeAsync(() => Failed?.Invoke(this, EventArgs.Empty));
-    }
-
+    /// <summary>
+    /// Stops the preview and releases the camera.  Must be called on the dispatcher thread the
+    /// camera was opened on.
+    /// </summary>
     public void Dispose()
     {
         _dispatcher.VerifyAccess();
@@ -217,13 +243,27 @@ internal sealed class WinRtCamera : IWpfCamera
         }
 
         _disposed = true;
+        _failure.TrySetCanceled();
 
         // Detach first so no frame can arrive against half-disposed state.
         _reader.FrameArrived -= Reader_FrameArrived;
         _capture.Failed -= Capture_Failed;
 
-        _reader.Dispose();
-        _preview.Dispose();
-        _capture.Dispose();
+        // Chained so a failure releasing one still releases the rest.
+        try
+        {
+            _reader.Dispose();
+        }
+        finally
+        {
+            try
+            {
+                _preview.Dispose();
+            }
+            finally
+            {
+                _capture.Dispose();
+            }
+        }
     }
 }

@@ -1,113 +1,106 @@
-﻿using Esatto.Utilities;
-using Itp.Handheld.WpfClient.Capture.WinRt;
-using System.Windows;
-using System.Windows.Controls;
+﻿using System.Windows;
 using System.Windows.Input;
-using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
+using Windows.Media.Capture.Frames;
 
-namespace Itp.Handheld.WpfClient.Pack;
+namespace Itp.WpfCamera;
 
+/// <summary>
+/// A maximized dialog with a camera picker and live preview that captures a single still.  Show it
+/// with <see cref="ShowDialogAsync"/>.
+/// </summary>
 public partial class CaptureWindow : Window
 {
-    private CaptureWindow(CaptureWindowViewModel viewModel)
+    private readonly CaptureWindowViewModel _viewModel;
+    private readonly TaskCompletionSource<BitmapSource> _result;
+
+    private CaptureWindow(IReadOnlyList<MediaFrameSourceGroup> cameras, CaptureWindowViewModel viewModel,
+        TaskCompletionSource<BitmapSource> result)
     {
         InitializeComponent();
 
-        this.DataContext = this.ViewModel = viewModel;
-        cbCamera.ItemsSource = viewModel.Cameras;
+        this.DataContext = _viewModel = viewModel;
+        _result = result;
 
-        // Seeded before the handler is attached so the default selection does not open a camera.
-        cbCamera.SelectedItem = viewModel.DefaultCamera;
-        cbCamera.SelectionChanged += cbCamera_SelectionChanged;
+        btCamera.ContextMenu.ItemsSource = cameras;
+        btCamera.Visibility = cameras.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
 
         Loaded += CaptureWindow_Loaded;
-        Activated += CaptureWindow_Activated;
-        Closed += CaptureWindow_Closed;
+        Closing += (_, _) => _result.TrySetCanceled();
     }
 
-    public static async Task ShowDialogAsync(Window parent, CaptureImagesPackStep step)
+    /// <summary>
+    /// Shows the capture dialog over <paramref name="owner"/> and waits for a still.
+    /// </summary>
+    /// <returns>A frozen still at the camera's capture resolution.</returns>
+    /// <exception cref="OperationCanceledException">The user closed the dialog without capturing.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// No camera was found, or the camera could not be opened, failed while open, or could not capture.
+    /// </exception>
+    public static async Task<BitmapSource> ShowDialogAsync(Window owner)
     {
-        ArgumentNullException.ThrowIfNull(parent);
-        ArgumentNullException.ThrowIfNull(step);
+        ArgumentNullException.ThrowIfNull(owner);
 
-        var window = new CaptureWindow(await CaptureWindowViewModel.CreateAsync(step))
+        var cameras = await WinRtCameraDeviceEnumerator.EnumerateAsync();
+        var remembered = CaptureSettings.Instance.SelectedCameraId;
+        var initial = cameras.FirstOrDefault(c => c.Id == remembered) ?? cameras.FirstOrDefault()
+            ?? throw new InvalidOperationException("No camera was found.");
+
+        // Completed once, by whichever comes first: a capture, a failure, or the user closing the window.
+        var result = new TaskCompletionSource<BitmapSource>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var viewModel = new CaptureWindowViewModel(await OpenCameraAsync(initial, result));
+        var window = new CaptureWindow(cameras, viewModel, result)
         {
-            Owner = parent,
+            Owner = owner,
         };
 
         window.ShowDialog();
+        return await result.Task;
     }
 
-    public CaptureWindowViewModel ViewModel { get; }
+    private static Task<WinRtCamera> OpenCameraAsync(MediaFrameSourceGroup group, TaskCompletionSource<BitmapSource> result)
+        => WinRtCamera.OpenAsync(group, (_, e) => result.TrySetException((Exception)e.ExceptionObject));
+
+    // Handlers are async void, so nothing may escape them or it would reach the dispatcher.
+    private async Task RunAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            _result.TrySetException(ex);
+        }
+    }
 
     private async void CaptureWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        if (ViewModel.DefaultCamera is not null)
-        {
-            await OpenCameraAsync(ViewModel.DefaultCamera);
-        }
+        // Completing the result, for any reason, ends the dialog.  Close is a no-op if the user
+        // already closed it.
+        await Task.WhenAny(_result.Task);
+        Close();
     }
 
-    private async void cbCamera_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    // Opens the camera menu on a left click too.
+    private void btCamera_Click(object sender, RoutedEventArgs e)
     {
-        // Reassigning ItemsSource clears the selection.
-        if (cbCamera.SelectedItem is WinRtCameraDeviceInfo device)
-        {
-            await OpenCameraAsync(device);
-        }
+        btCamera.ContextMenu.PlacementTarget = btCamera;
+        btCamera.ContextMenu.IsOpen = true;
     }
 
-    private async Task OpenCameraAsync(WinRtCameraDeviceInfo device)
+    private async void Capture_Executed(object sender, ExecutedRoutedEventArgs e)
+        => await RunAsync(async () => _result.TrySetResult(await _viewModel.CaptureAsync()));
+
+    // The open camera is held exclusively, so it cannot be opened again.
+    private void SwitchCamera_CanExecute(object sender, CanExecuteRoutedEventArgs e)
+        => e.CanExecute = e.Parameter is MediaFrameSourceGroup group && group.Id != _viewModel.Group.Id;
+
+    private async void SwitchCamera_Executed(object sender, ExecutedRoutedEventArgs e)
     {
-        cbCamera.IsEnabled = false;
-        try
-        {
-            await this.RunAsync("opening camera", () => ViewModel.OpenCameraAsync(device));
-        }
-        finally
-        {
-            cbCamera.IsEnabled = true;
-        }
+        var group = (MediaFrameSourceGroup)e.Parameter;
+        await RunAsync(async () => await _viewModel.AcceptAsync(await OpenCameraAsync(group, _result)));
     }
 
-    private async void CaptureWindow_Activated(object? sender, EventArgs e)
-    {
-        await this.RunAsync("reconnecting camera", ViewModel.ReconnectIfNeededAsync);
-    }
-
-    private void CaptureWindow_Closed(object? sender, EventArgs e)
-    {
-        this.Run("closing camera", ViewModel.Dispose);
-    }
-
-    // Previewed so the key reaches here even while the camera combo box has focus.
-    private async void CaptureWindow_PreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.F2 || !ViewModel.CanCapture)
-        {
-            return;
-        }
-
-        e.Handled = true;
-        await CaptureImageAsync();
-    }
-
-    private async void btCapture_Click(object sender, RoutedEventArgs e)
-    {
-        await CaptureImageAsync();
-    }
-
-    private async Task CaptureImageAsync()
-    {
-        // A reported failure leaves the window up, to retry from.
-        await this.RunAsync("capturing image", async () =>
-        {
-            await ViewModel.CaptureAsync();
-            captureFlash.BeginAnimation(OpacityProperty,
-                new DoubleAnimation(0.8, 0, TimeSpan.FromMilliseconds(250)));
-            Close();
-        });
-    }
-
-    private void btClose_Click(object sender, RoutedEventArgs e) => Close();
+    private void Close_Executed(object sender, ExecutedRoutedEventArgs e) => Close();
 }

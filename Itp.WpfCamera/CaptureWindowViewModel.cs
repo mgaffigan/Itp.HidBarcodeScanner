@@ -1,168 +1,88 @@
-﻿using System.Windows.Media;
-using Esatto;
-using Itp.Handheld.WpfClient.Capture;
-using Itp.Handheld.WpfClient.Capture.WinRt;
+﻿using System.ComponentModel;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using Windows.Media.Capture.Frames;
 
-namespace Itp.Handheld.WpfClient.Pack;
+namespace Itp.WpfCamera;
 
-public sealed class CaptureWindowViewModel : NotificationObject, IDisposable
+// Owns exactly one open camera at a time.  Accept, capture, and dispose are serialized, so a
+// camera is never disposed under an in-flight capture.
+internal sealed class CaptureWindowViewModel : INotifyPropertyChanged, IAsyncDisposable
 {
-    private readonly CaptureImagesPackStep _step;
-    private IWpfCamera? _camera;
-    private WinRtCameraDeviceInfo? _device;
+    private readonly SemaphoreSlim _mutex = new(1, 1);
+    private WinRtCamera _camera;
+    private bool _disposed;
 
-    // Every member here runs on the UI thread, so plain fields are enough to guard both flags.
-    private bool _isOpening;
-
-    private CaptureWindowViewModel(CaptureImagesPackStep step,
-        IReadOnlyList<WinRtCameraDeviceInfo> cameras)
+    // Takes ownership of camera.
+    public CaptureWindowViewModel(WinRtCamera camera)
     {
-        _step = step;
-        Cameras = cameras;
-        DefaultCamera = WinRtCameraSelector.SelectDefault(cameras);
-
-        // Otherwise an empty dropdown and a dead Capture button are the only clue.
-        if (cameras.Count == 0)
-        {
-            CameraStatus = "No camera found.";
-        }
+        ArgumentNullException.ThrowIfNull(camera);
+        _camera = camera;
     }
 
-    public static async Task<CaptureWindowViewModel> CreateAsync(CaptureImagesPackStep step)
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public MediaFrameSourceGroup Group => _camera.Group;
+
+    public ImageSource Preview => _camera.Preview;
+
+    // Takes ownership of camera, even on failure, and disposes the one it replaces.
+    public async Task AcceptAsync(WinRtCamera camera)
     {
-        ArgumentNullException.ThrowIfNull(step);
-        return new CaptureWindowViewModel(step, await WinRtCameraDeviceEnumerator.EnumerateAsync());
-    }
+        ArgumentNullException.ThrowIfNull(camera);
 
-    public IReadOnlyList<WinRtCameraDeviceInfo> Cameras { get; }
-
-    // The camera to show on open; null when the machine has none.
-    public WinRtCameraDeviceInfo? DefaultCamera { get; }
-
-    public ImageSource? Preview => _camera?.Preview;
-
-    public bool CanCapture => _camera is not null && !IsCapturing;
-
-    private bool IsCapturing
-    {
-        get;
-        set
-        {
-            field = value;
-            RaisePropertyChanged(nameof(CanCapture));
-        }
-    }
-
-    private string? _cameraStatus;
-    public string? CameraStatus
-    {
-        get => _cameraStatus;
-        private set
-        {
-            _cameraStatus = value;
-            RaisePropertyChanged(nameof(CameraStatus));
-        }
-    }
-
-    public async Task OpenCameraAsync(WinRtCameraDeviceInfo device)
-    {
-        ArgumentNullException.ThrowIfNull(device);
-
-        // Activated fires while an open is still awaiting, and _camera is null throughout, so
-        // ReconnectIfNeededAsync would otherwise start a second open over the top of this one.
-        if (_isOpening)
-        {
-            return;
-        }
-
-        _isOpening = true;
-        CloseCamera();
-        CameraStatus = $"Opening \"{device.FriendlyName}\"...";
+        await _mutex.WaitAsync();
         try
         {
-            var factory = new WinRtCameraFactory(device.FriendlyName, device.Id);
-            var camera = await factory.CreateAsync();
-            camera.Failed += Camera_Failed;
+            if (_disposed)
+            {
+                camera.Dispose();
+                throw new ObjectDisposedException(nameof(CaptureWindowViewModel));
+            }
+
+            // Own the new camera before disposing the old, so a failure there cannot orphan it.
+            var old = _camera;
             _camera = camera;
-
-            _device = device;
-            CaptureSettings.Instance.SelectedCameraId = device.Id;
-
-            RaisePropertyChanged(nameof(Preview));
-            RaisePropertyChanged(nameof(CanCapture));
-        }
-        catch (Exception ex)
-        {
-            _step.Fail(ex);
-            throw;
+            old.Dispose();
         }
         finally
         {
-            _isOpening = false;
-            CameraStatus = null;
+            _mutex.Release();
         }
+
+        CaptureSettings.Instance.SelectedCameraId = camera.Group.Id;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Group)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Preview)));
     }
 
-    public async Task CaptureAsync()
+    public async Task<BitmapSource> CaptureAsync()
     {
-        if (!CanCapture)
-        {
-            throw new InvalidOperationException("Cannot capture while another capture is in progress");
-        }
-
-        IsCapturing = true;
+        await _mutex.WaitAsync();
         try
         {
-            _step.AddFrame(await _camera!.CaptureAsync());
-            CameraStatus = $"Captured {_step.Frames.Count} image(s)";
-        }
-        catch (Exception ex)
-        {
-            // Don't leave a stale success count next to a failure.
-            CameraStatus = null;
-            _step.Fail(ex);
-            throw;
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return await _camera.CaptureAsync();
         }
         finally
         {
-            IsCapturing = false;
+            _mutex.Release();
         }
     }
 
-    private void Camera_Failed(object? sender, EventArgs e)
+    public async ValueTask DisposeAsync()
     {
-        CloseCamera();
-
-        // Locking the session releases the camera; explain rather than leave a black preview.
-        CameraStatus = "The camera stopped. Reconnecting when this window is next active.";
-        _step.Fail(new InvalidOperationException("The camera stopped unexpectedly."));
-    }
-
-    // Recovers after a session lock or another app taking the camera.
-    public async Task ReconnectIfNeededAsync()
-    {
-        if (_camera is not null || _device is null)
+        await _mutex.WaitAsync();
+        try
         {
-            return;
+            if (!_disposed)
+            {
+                _disposed = true;
+                _camera.Dispose();
+            }
         }
-
-        await OpenCameraAsync(_device);
-    }
-
-    private void CloseCamera()
-    {
-        if (_camera is null)
+        finally
         {
-            return;
+            _mutex.Release();
         }
-
-        _camera.Failed -= Camera_Failed;
-        _camera.Dispose();
-        _camera = null;
-
-        RaisePropertyChanged(nameof(Preview));
-        RaisePropertyChanged(nameof(CanCapture));
     }
-
-    public void Dispose() => CloseCamera();
 }

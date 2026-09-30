@@ -1,10 +1,11 @@
 ﻿using System.Runtime.CompilerServices;
+using System.Windows.Interop;
 using DirectN;
 using DirectN.Extensions;
 using DirectN.Extensions.Com;
 using ComObject = DirectN.Extensions.Com.ComObject;
 
-namespace Itp.Handheld.WpfClient.Capture.WinRt;
+namespace Itp.WpfCamera;
 
 // DirectN.Extensions wraps DXGI, D2D and D3D12 this way, but not D3D9Ex.
 internal static class Direct3D9Extensions
@@ -36,6 +37,14 @@ internal static class Direct3D9Extensions
         device.Object.CreateTexture(width, height, levels, usage, format, pool, out var texture,
             ref sharedHandle).ThrowOnError();
         return new ComObject<IDirect3DTexture9>(texture);
+    }
+
+    // D3DImage holds its own reference to the back buffer, so a borrowed pointer is enough.  Call
+    // between D3DImage.Lock and Unlock; null clears the back buffer.
+    public static void SetBackBuffer(this D3DImage image, IComObject<IDirect3DSurface9>? surface)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        image.SetBackBuffer(D3DResourceType.IDirect3DSurface9, surface?.ToComInstanceNoAddRef() ?? IntPtr.Zero);
     }
 
     public static IComObject<IDirect3DSurface9> GetSurfaceLevel(
