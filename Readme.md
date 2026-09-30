@@ -11,3 +11,9 @@ Framwork for incorporating barcode and RFID scanners into WPF applications.
 Hardware API to allow USB HID POS Barcode Scanners to be used from windows desktop applications.
 
 [More information](Itp.HidBarcodeScanner)
+
+## ITP WPF Camera API
+
+Live webcam preview and still capture for WPF applications, using WinRT `MediaCapture`.
+
+[More information](Itp.WpfCamera)

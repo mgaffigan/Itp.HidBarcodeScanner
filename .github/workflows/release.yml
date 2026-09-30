@@ -24,3 +24,7 @@ jobs:
       run: dotnet pack Itp.HidCallControl -c Release
     - name: NugetPush Itp.HidCallControl
       run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} --skip-duplicate Itp.HidCallControl/bin/Release/Itp.HidCallControl.${{github.ref_name}}.nupkg
+    - name: Build Itp.WpfCamera
+      run: dotnet pack Itp.WpfCamera -c Release
+    - name: NugetPush Itp.WpfCamera
+      run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} --skip-duplicate Itp.WpfCamera/bin/Release/Itp.WpfCamera.${{github.ref_name}}.nupkg
