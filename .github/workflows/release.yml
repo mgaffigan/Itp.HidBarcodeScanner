@@ -1,5 +1,8 @@
 name: Release tagged revision
 
+# Packs every library and pushes them all; versions already on nuget.org are skipped.  To release
+# a package, bump its VersionPrefix and push any version tag.
+
 on:
   push:
     tags:
@@ -12,19 +15,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    # Libraries only: the solution also holds demos and a C++ project dotnet cannot build.  One
+    # step each, so any failed pack stops the job before anything is pushed.
     - name: Build Itp.HidBarcodeScanner
-      run: dotnet pack Itp.HidBarcodeScanner -c Release
-    - name: NugetPush Itp.HidBarcodeScanner
-      run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} --skip-duplicate Itp.HidBarcodeScanner/bin/Release/Itp.HidBarcodeScanner.${{github.ref_name}}.nupkg
+      run: dotnet pack Itp.HidBarcodeScanner -c Release -p PackageOutputPath=${{github.workspace}}/dist
     - name: Build Itp.WpfScanners
-      run: dotnet pack Itp.WpfScannerScopes -c Release
-    - name: NugetPush Itp.WpfScanners
-      run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} --skip-duplicate Itp.WpfScannerScopes/bin/Release/Itp.WpfScanners.${{github.ref_name}}.nupkg
+      run: dotnet pack Itp.WpfScannerScopes -c Release -p PackageOutputPath=${{github.workspace}}/dist
     - name: Build Itp.HidCallControl
-      run: dotnet pack Itp.HidCallControl -c Release
-    - name: NugetPush Itp.HidCallControl
-      run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} --skip-duplicate Itp.HidCallControl/bin/Release/Itp.HidCallControl.${{github.ref_name}}.nupkg
+      run: dotnet pack Itp.HidCallControl -c Release -p PackageOutputPath=${{github.workspace}}/dist
     - name: Build Itp.WpfCamera
-      run: dotnet pack Itp.WpfCamera -c Release
-    - name: NugetPush Itp.WpfCamera
-      run: dotnet nuget push -s https://www.nuget.org/api/v2/package --api-key ${{secrets.MG_NUGET_SECRET}} --skip-duplicate Itp.WpfCamera/bin/Release/Itp.WpfCamera.${{github.ref_name}}.nupkg
+      run: dotnet pack Itp.WpfCamera -c Release -p PackageOutputPath=${{github.workspace}}/dist
+    - name: NugetPush
+      run: dotnet nuget push -s https://api.nuget.org/v3/index.json --api-key ${{secrets.MG_NUGET_SECRET}} --skip-duplicate "${{github.workspace}}/dist/*.nupkg"
