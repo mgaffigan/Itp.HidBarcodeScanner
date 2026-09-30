@@ -26,4 +26,4 @@ jobs:
     - name: Build Itp.WpfCamera
       run: dotnet pack Itp.WpfCamera -c Release -p PackageOutputPath=${{github.workspace}}/dist
     - name: NugetPush
-      run: dotnet nuget push -s https://api.nuget.org/v3/index.json --api-key ${{secrets.MG_NUGET_SECRET}} --skip-duplicate "${{github.workspace}}/dist/*.nupkg"
+      run: dotnet nuget push -s https://api.nuget.org/v3/index.json --api-key ${{secrets.MG_NUGET_SECRET}} --skip-duplicate "${{github.workspace}}/dist/**/*.nupkg"
