@@ -9,7 +9,7 @@
     <Title>ITP WPF Camera API</Title>
     <Description>Live preview and still capture from webcams in WPF applications, using WinRT MediaCapture with a GPU-only preview path.</Description>
     <PackageReadmeFile>Readme.md</PackageReadmeFile>
-    <VersionPrefix>1.0.0</VersionPrefix>
+    <VersionPrefix>3.0.1</VersionPrefix>
   </PropertyGroup>
   <Import Project="..\assets\EsattoCSCommon.targets" />
 
