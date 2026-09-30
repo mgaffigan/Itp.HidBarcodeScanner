@@ -1,0 +1,41 @@
+﻿<Window x:Class="Itp.Handheld.WpfClient.Pack.CaptureWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:local="clr-namespace:Itp.Handheld.WpfClient.Pack"
+        mc:Ignorable="d" d:DataContext="{d:DesignInstance IsDesignTimeCreatable=False, Type={x:Type local:CaptureWindowViewModel}}"
+        Title="Capture Images" Background="Black"
+        WindowState="Maximized"
+        WindowStartupLocation="CenterOwner"
+        PreviewKeyDown="CaptureWindow_PreviewKeyDown">
+    <DockPanel>
+        <Grid DockPanel.Dock="Top" Background="#FF1E1E1E">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Foreground="White" VerticalAlignment="Center" Margin="10,8,8,8" Text="Camera:" />
+            <ComboBox x:Name="cbCamera" Grid.Column="1" Width="300" HorizontalAlignment="Left" Margin="0,8,8,8"
+                      DisplayMemberPath="FriendlyName" />
+        </Grid>
+        <Grid DockPanel.Dock="Bottom" Background="#FF1E1E1E" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Foreground="White" VerticalAlignment="Center" Margin="10,0,0,0"
+                       Text="{Binding Path=CameraStatus}" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button x:Name="btCapture" Content="_Capture" IsEnabled="{Binding Path=CanCapture}" ToolTip="Capture (F2)"
+                        Width="100" Height="30" Margin="8" Click="btCapture_Click" />
+                <Button x:Name="btClose" Content="Close" Width="75" Height="30" Margin="0,8,8,8" Click="btClose_Click" IsCancel="True" />
+            </StackPanel>
+        </Grid>
+        <Grid Background="Black">
+            <Image Source="{Binding Path=Preview}" Stretch="Uniform" />
+            <!-- Shutter flash; opacity is animated from code-behind on a successful capture. -->
+            <Rectangle x:Name="captureFlash" Fill="White" Opacity="0" IsHitTestVisible="False" />
+        </Grid>
+    </DockPanel>
+</Window>
